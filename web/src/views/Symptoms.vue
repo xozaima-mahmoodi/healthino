@@ -1,6 +1,5 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
-import { RouterLink } from 'vue-router'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import SymptomForm from '../components/SymptomForm.vue'
 import { useSymptomStore } from '../stores/symptom'
@@ -11,8 +10,7 @@ const symptomStore = useSymptomStore()
 
 <template>
   <main class="min-h-screen">
-    <header class="px-4 py-4 sm:px-8 flex items-center justify-between border-b border-slate-200 bg-white">
-      <RouterLink to="/" class="text-xl font-bold text-brand-dark">{{ t('app.name') }}</RouterLink>
+    <header class="px-4 py-4 sm:px-8 flex items-center justify-end border-b border-slate-200 bg-white">
       <LanguageSwitcher />
     </header>
 

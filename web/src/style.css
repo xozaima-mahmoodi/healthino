@@ -1,6 +1,9 @@
+@import "@fontsource/vazirmatn/300.css";
 @import "@fontsource/vazirmatn/400.css";
 @import "@fontsource/vazirmatn/500.css";
+@import "@fontsource/vazirmatn/600.css";
 @import "@fontsource/vazirmatn/700.css";
+@import "@fontsource/vazirmatn/800.css";
 
 @tailwind base;
 @tailwind components;
@@ -11,9 +14,28 @@
     @apply h-full;
   }
   body {
-    @apply font-sans bg-slate-50 text-slate-800 antialiased;
+    @apply font-sans bg-surface text-slate-800 antialiased;
+    font-feature-settings: "ss02", "kern";
+    text-rendering: optimizeLegibility;
   }
-  [dir="rtl"] {
-    text-align: right;
+  [dir="rtl"] { text-align: right; }
+  h1, h2, h3 { @apply font-bold tracking-tight text-slate-800; }
+}
+
+@layer utilities {
+  /* Soft gradient mesh used on the landing background */
+  .mesh-bg {
+    background-color: #F8FAFC;
+    background-image:
+      radial-gradient(at 18% 14%, rgba(16,185,129,0.18) 0px, transparent 55%),
+      radial-gradient(at 82%  6%, rgba(56,189,248,0.16) 0px, transparent 50%),
+      radial-gradient(at 88% 88%, rgba(16,185,129,0.14) 0px, transparent 55%),
+      radial-gradient(at  6% 92%, rgba(99,102,241,0.10) 0px, transparent 55%);
+  }
+
+  /* Faint dot grid overlay (subtle geometric) */
+  .dot-grid {
+    background-image: radial-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+    background-size: 22px 22px;
   }
 }

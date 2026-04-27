@@ -16,20 +16,25 @@ const { t } = useI18n()
       <div class="absolute inset-0 dot-grid opacity-60"></div>
     </div>
 
-    <!-- Top-left language switcher (absolute, RTL-independent) -->
-    <div class="absolute top-4 left-4 sm:top-6 sm:left-6 z-20">
-      <LanguageSwitcher />
-    </div>
-
-    <!-- Top-right brand mark (physical position) -->
-    <div class="absolute top-4 right-4 sm:top-6 sm:right-6 z-10">
-      <span class="text-sm sm:text-base font-bold text-slate-700/80 tracking-wide">
-        {{ t('app.name') }}
-      </span>
-    </div>
+    <!-- Header: tagline centered, switcher start, brand end (stacks on mobile) -->
+    <header class="relative z-20 px-4 sm:px-8 py-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-3">
+        <div class="flex justify-center sm:justify-start order-2 sm:order-1">
+          <LanguageSwitcher />
+        </div>
+        <p class="order-1 sm:order-2 sm:flex-1 sm:px-4 text-center text-sm sm:text-base font-medium text-slate-500">
+          {{ t('app.tagline') }}
+        </p>
+        <div class="flex justify-center sm:justify-end order-3">
+          <span class="text-sm sm:text-base font-bold text-slate-700/80 tracking-wide">
+            {{ t('app.name') }}
+          </span>
+        </div>
+      </div>
+    </header>
 
     <!-- Centered glass card -->
-    <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-24 sm:py-28">
+    <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-12 sm:py-16">
       <div
         class="w-full max-w-2xl rounded-3xl
                bg-white/80 backdrop-blur-xl
@@ -46,10 +51,6 @@ const { t } = useI18n()
             <path d="M3 12h4l2-6 4 12 2-6h6"/>
           </svg>
         </div>
-
-        <p class="text-sm sm:text-base font-semibold text-brand-dark/80 mb-4 mx-auto max-w-md">
-          {{ t('app.tagline') }}
-        </p>
 
         <h1 class="text-2xl sm:text-4xl font-bold text-slate-800 leading-relaxed mx-auto max-w-xl">
           {{ t('landing.hero_title') }}

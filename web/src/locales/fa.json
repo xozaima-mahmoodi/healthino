@@ -1,0 +1,39 @@
+{
+  "app": {
+    "name": "هلثینو",
+    "tagline": "تریاژ هوشمند و پیشنهاد پزشک"
+  },
+  "nav": {
+    "home": "خانه",
+    "symptoms": "بررسی علائم"
+  },
+  "landing": {
+    "hero_title": "علائم خود را وارد کنید، بهترین پزشک را پیدا کنید",
+    "hero_sub": "هلثینو علائم شما را تحلیل می‌کند، موارد اورژانسی را تشخیص می‌دهد و پزشک مناسب را پیشنهاد می‌دهد.",
+    "cta_start": "شروع بررسی"
+  },
+  "symptom_form": {
+    "title": "بررسی علائم",
+    "symptoms_label": "علائم خود را انتخاب یا تایپ کنید",
+    "symptoms_placeholder": "مثلاً سردرد، تب، سرفه",
+    "severity_label": "شدت (۱ تا ۱۰)",
+    "body_area_label": "ناحیه بدن",
+    "duration_label": "مدت (ساعت)",
+    "submit": "تحلیل علائم",
+    "analyzing": "در حال تحلیل…",
+    "result_title": "نتیجه تریاژ",
+    "red_flag_warning": "هشدار: علائم اورژانسی! لطفاً فوراً به اورژانس مراجعه کنید.",
+    "recommended_specialty": "تخصص پیشنهادی",
+    "recommended_doctors": "پزشکان پیشنهادی",
+    "experience_years": "سال تجربه",
+    "rating": "امتیاز"
+  },
+  "body_areas": {
+    "head": "سر",
+    "skin": "پوست",
+    "chest": "قفسه سینه",
+    "abdomen": "شکم",
+    "joints": "مفاصل"
+  },
+  "language": "زبان"
+}

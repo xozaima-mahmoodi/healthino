@@ -1,0 +1,11 @@
+Rails.application.routes.draw do
+  get "up" => "rails/health#show", as: :rails_health_check
+
+  namespace :api do
+    namespace :v1 do
+      post "symptom_checker", to: "symptom_checker#create"
+      resources :specialties, only: %i[index show]
+      resources :doctors, only: %i[index show]
+    end
+  end
+end

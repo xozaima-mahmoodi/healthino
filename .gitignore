@@ -1,0 +1,15 @@
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+api/log/*.log
+api/tmp/
+api/storage/
+api/.byebug_history
+api/coverage/
+
+web/node_modules/
+web/dist/
+web/.vite/

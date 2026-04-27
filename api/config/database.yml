@@ -1,0 +1,21 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  username: <%= ENV.fetch("HEALTHINO_DB_USER", ENV["USER"]) %>
+  password: <%= ENV["HEALTHINO_DB_PASSWORD"] %>
+  host: <%= ENV["HEALTHINO_DB_HOST"] %>
+
+development:
+  <<: *default
+  database: healthino_development
+
+test:
+  <<: *default
+  database: healthino_test
+
+production:
+  <<: *default
+  database: healthino_production
+  username: healthino
+  password: <%= ENV["HEALTHINO_DATABASE_PASSWORD"] %>

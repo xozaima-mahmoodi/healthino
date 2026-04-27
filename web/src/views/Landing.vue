@@ -47,15 +47,15 @@ const { t } = useI18n()
           </svg>
         </div>
 
-        <p class="text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] text-brand-dark/80 mb-3">
+        <p class="text-sm sm:text-base font-semibold text-brand-dark/80 mb-4 mx-auto max-w-md">
           {{ t('app.tagline') }}
         </p>
 
-        <h1 class="text-3xl sm:text-5xl font-extrabold text-slate-800 leading-[1.15]">
+        <h1 class="text-2xl sm:text-4xl font-bold text-slate-800 leading-relaxed mx-auto max-w-xl">
           {{ t('landing.hero_title') }}
         </h1>
 
-        <p class="mt-5 text-base sm:text-lg text-slate-600 leading-relaxed max-w-xl mx-auto">
+        <p class="mt-5 text-base sm:text-lg font-medium text-slate-600 leading-relaxed mx-auto max-w-xl">
           {{ t('landing.hero_sub') }}
         </p>
 

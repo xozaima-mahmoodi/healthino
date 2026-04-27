@@ -18,7 +18,7 @@ const { t } = useI18n()
 
     <!-- Header: brand at start, switcher at end, tagline centered between (stacks on mobile) -->
     <header class="relative z-20 px-4 sm:px-8 py-5 border-b border-slate-300/50 shadow-sm">
-      <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center sm:justify-between gap-3">
+      <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center sm:justify-between gap-3">
         <div class="flex justify-center sm:justify-start order-2 sm:order-1 leading-none">
           <span class="text-sm sm:text-base font-bold text-slate-700/80">
             {{ t('app.name') }}
@@ -36,11 +36,11 @@ const { t } = useI18n()
     <!-- Centered glass card -->
     <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-10 sm:py-14">
       <div
-        class="w-full max-w-5xl mx-auto rounded-3xl
+        class="w-full max-w-6xl mx-auto rounded-3xl
                bg-white/80 backdrop-blur-xl
                border border-white/60 ring-1 ring-slate-900/5
                shadow-glass
-               px-6 py-10 sm:px-12 sm:py-14 text-center"
+               px-6 py-10 sm:px-10 sm:py-14 text-center"
       >
         <!-- Medical mark -->
         <div class="mx-auto mb-6 inline-flex h-16 w-16 items-center justify-center
@@ -52,28 +52,24 @@ const { t } = useI18n()
           </svg>
         </div>
 
-        <h1 class="text-2xl sm:text-4xl font-bold text-slate-800 leading-relaxed sm:whitespace-nowrap">
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 leading-relaxed sm:whitespace-nowrap">
           {{ t('landing.hero_title') }}
         </h1>
 
-        <p class="mt-5 text-base sm:text-lg font-medium text-slate-600 leading-relaxed mx-auto max-w-2xl">
-          {{ t('landing.hero_sub') }}
-        </p>
-
         <RouterLink
           to="/symptoms"
-          class="group mt-9 inline-flex items-center justify-center gap-2
-                 px-7 py-3.5 rounded-full
-                 bg-brand text-white font-semibold
+          class="group mt-10 sm:mt-12 inline-flex items-center justify-center gap-3
+                 px-10 sm:px-12 py-4 sm:py-5 rounded-full
+                 bg-brand text-white text-base sm:text-lg font-semibold
                  shadow-cta
                  transition-all duration-300 ease-bounceish
-                 hover:bg-brand-dark hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-8px_rgba(5,150,105,0.55)]
+                 hover:bg-brand-dark hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-8px_rgba(5,150,105,0.55)]
                  active:translate-y-0 active:shadow-cta
                  focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-ring"
         >
           <span>{{ t('landing.cta_start') }}</span>
           <svg
-            class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1
+            class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1
                    rtl:rotate-180 rtl:group-hover:-translate-x-1"
             viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -81,15 +77,9 @@ const { t } = useI18n()
           </svg>
         </RouterLink>
 
-        <!-- Trust line -->
-        <div class="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
-          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2l9 4v6c0 5-4 9-9 10-5-1-9-5-9-10V6l9-4z"/>
-            <path d="M9 12l2 2 4-4"/>
-          </svg>
-          <span dir="auto">HIPAA · GDPR</span>
-        </div>
+        <p class="mt-8 sm:mt-10 text-sm text-slate-500 leading-relaxed mx-auto lg:whitespace-nowrap">
+          {{ t('landing.hero_sub') }}
+        </p>
       </div>
     </section>
 

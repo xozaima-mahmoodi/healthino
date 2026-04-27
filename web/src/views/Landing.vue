@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import ThemeToggle from '../components/ThemeToggle.vue'
 
 const { t } = useI18n()
 </script>
@@ -10,24 +11,30 @@ const { t } = useI18n()
   <main class="relative min-h-screen overflow-hidden mesh-bg flex flex-col">
     <!-- Decorative blobs -->
     <div class="pointer-events-none absolute inset-0 -z-0" aria-hidden="true">
-      <div class="absolute -top-32 -left-24 h-80 w-80 rounded-full bg-emerald-300/30 blur-3xl"></div>
-      <div class="absolute top-1/2 -right-32 h-[420px] w-[420px] rounded-full bg-sky-300/25 blur-3xl"></div>
-      <div class="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-indigo-300/20 blur-3xl"></div>
+      <div class="absolute -top-32 -left-24 h-80 w-80 rounded-full
+                  bg-emerald-300/30 dark:bg-emerald-500/10 blur-3xl"></div>
+      <div class="absolute top-1/2 -right-32 h-[420px] w-[420px] rounded-full
+                  bg-sky-300/25 dark:bg-sky-500/10 blur-3xl"></div>
+      <div class="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full
+                  bg-indigo-300/20 dark:bg-indigo-500/10 blur-3xl"></div>
       <div class="absolute inset-0 dot-grid opacity-60"></div>
     </div>
 
     <!-- Header: brand at start, switcher at end, tagline centered between (stacks on mobile) -->
-    <header class="relative z-20 px-4 sm:px-8 py-5 border-b border-slate-300/50 shadow-sm">
+    <header class="relative z-20 px-4 sm:px-8 py-5
+                   border-b border-slate-300/50 dark:border-slate-700/50 shadow-sm dark:shadow-none">
       <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center sm:justify-between gap-3">
         <div class="flex justify-center sm:justify-start order-2 sm:order-1 leading-none">
-          <span class="text-sm sm:text-base font-bold text-slate-700/80">
+          <span class="text-sm sm:text-base font-bold text-slate-700/80 dark:text-slate-200/80">
             {{ t('app.name') }}
           </span>
         </div>
-        <p class="order-1 sm:order-2 sm:flex-1 sm:px-4 text-center text-sm sm:text-base font-medium text-slate-500 leading-none m-0">
+        <p class="order-1 sm:order-2 sm:flex-1 sm:px-4 text-center text-sm sm:text-base
+                  font-medium text-slate-500 dark:text-slate-400 leading-none m-0">
           {{ t('app.tagline') }}
         </p>
-        <div class="flex justify-center sm:justify-end order-3 leading-none">
+        <div class="flex items-center justify-center sm:justify-end gap-2 order-3 leading-none">
+          <ThemeToggle />
           <LanguageSwitcher />
         </div>
       </div>
@@ -37,22 +44,24 @@ const { t } = useI18n()
     <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-10 sm:py-14">
       <div
         class="w-full max-w-6xl mx-auto rounded-3xl
-               bg-white/80 backdrop-blur-xl
-               border border-white/60 ring-1 ring-slate-900/5
-               shadow-glass
+               bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+               border border-white/60 dark:border-white/10
+               ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+               shadow-glass dark:shadow-glass-dk
                px-6 py-10 sm:px-10 sm:py-14 text-center"
       >
         <!-- Medical mark -->
         <div class="mx-auto mb-6 inline-flex h-16 w-16 items-center justify-center
                     rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700
-                    text-white shadow-lg shadow-brand/30">
+                    text-white shadow-lg shadow-brand/30 dark:shadow-emerald-900/50">
           <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12h4l2-6 4 12 2-6h6"/>
           </svg>
         </div>
 
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 leading-relaxed sm:whitespace-nowrap">
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-100
+                   leading-relaxed sm:whitespace-nowrap">
           {{ t('landing.hero_title') }}
         </h1>
 
@@ -77,13 +86,14 @@ const { t } = useI18n()
           </svg>
         </RouterLink>
 
-        <p class="mt-8 sm:mt-10 text-sm text-slate-500 leading-relaxed mx-auto lg:whitespace-nowrap">
+        <p class="mt-8 sm:mt-10 text-sm text-slate-500 dark:text-slate-400
+                  leading-relaxed mx-auto lg:whitespace-nowrap">
           {{ t('landing.hero_sub') }}
         </p>
       </div>
     </section>
 
-    <footer class="relative z-10 px-4 pb-6 text-center text-xs text-slate-400">
+    <footer class="relative z-10 px-4 pb-6 text-center text-xs text-slate-400 dark:text-slate-500">
       © {{ new Date().getFullYear() }} {{ t('app.name') }}
     </footer>
   </main>

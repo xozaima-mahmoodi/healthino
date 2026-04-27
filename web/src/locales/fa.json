@@ -36,5 +36,10 @@
     "abdomen": "شکم",
     "joints": "مفاصل"
   },
-  "language": "زبان"
+  "language": "زبان",
+  "theme": {
+    "toggle": "تغییر حالت روشن/تاریک",
+    "light": "روشن",
+    "dark": "تاریک"
+  }
 }

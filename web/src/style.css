@@ -17,13 +17,18 @@
     @apply font-sans bg-surface text-slate-800 antialiased;
     font-feature-settings: "ss02", "kern";
     text-rendering: optimizeLegibility;
+    transition: background-color 250ms ease, color 250ms ease;
+  }
+  html.dark body {
+    @apply bg-slate-950 text-slate-200;
   }
   [dir="rtl"] { text-align: right; }
   h1, h2, h3 { @apply font-bold tracking-tight text-slate-800; }
+  html.dark h1, html.dark h2, html.dark h3 { @apply text-slate-100; }
 }
 
 @layer utilities {
-  /* Soft gradient mesh used on the landing background */
+  /* Soft gradient mesh used on the landing background (light) */
   .mesh-bg {
     background-color: #F8FAFC;
     background-image:
@@ -31,11 +36,25 @@
       radial-gradient(at 82%  6%, rgba(56,189,248,0.16) 0px, transparent 50%),
       radial-gradient(at 88% 88%, rgba(16,185,129,0.14) 0px, transparent 55%),
       radial-gradient(at  6% 92%, rgba(99,102,241,0.10) 0px, transparent 55%);
+    transition: background 350ms ease;
+  }
+  /* Dark variant: deep slate/navy gradient with faint emerald accents */
+  html.dark .mesh-bg {
+    background-color: #020617;
+    background-image:
+      linear-gradient(160deg, #0f172a 0%, #020617 60%, #020617 100%),
+      radial-gradient(at 18% 14%, rgba(16,185,129,0.10) 0px, transparent 55%),
+      radial-gradient(at 82%  6%, rgba(56,189,248,0.08) 0px, transparent 50%),
+      radial-gradient(at 88% 88%, rgba(16,185,129,0.08) 0px, transparent 55%),
+      radial-gradient(at  6% 92%, rgba(99,102,241,0.06) 0px, transparent 55%);
   }
 
-  /* Faint dot grid overlay (subtle geometric) */
+  /* Faint dot grid overlay */
   .dot-grid {
     background-image: radial-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px);
     background-size: 22px 22px;
+  }
+  html.dark .dot-grid {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   }
 }

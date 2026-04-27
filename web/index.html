@@ -21,6 +21,16 @@
     <meta name="application-name" content="Healthino" />
   </head>
   <body>
+    <script>
+      // Apply persisted theme before paint to avoid FOUC
+      (function () {
+        try {
+          if (localStorage.getItem('healthino_theme') === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (_) { /* no-op */ }
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

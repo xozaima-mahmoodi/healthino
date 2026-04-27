@@ -23,12 +23,13 @@ function goBack() {
     class="group fixed top-4 sm:top-6 start-4 sm:start-6 z-30
            inline-flex items-center justify-center
            h-11 w-11 rounded-full
-           bg-white/70 backdrop-blur-md
-           border border-white/60 ring-1 ring-slate-900/5
-           shadow-sm text-slate-700
+           bg-white/70 dark:bg-slate-800/60 backdrop-blur-md
+           border border-white/60 dark:border-white/10
+           ring-1 ring-slate-900/5 dark:ring-white/5
+           shadow-sm dark:shadow-none text-slate-700 dark:text-slate-200
            transition-all duration-200 ease-bounceish
-           hover:bg-white/85 hover:backdrop-blur-xl
-           hover:scale-110 hover:shadow-md hover:text-brand-dark
+           hover:bg-white/85 dark:hover:bg-slate-800/80 hover:backdrop-blur-xl
+           hover:scale-110 hover:shadow-md hover:text-brand-dark dark:hover:text-emerald-300
            active:scale-100
            focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-ring"
     @click="goBack"

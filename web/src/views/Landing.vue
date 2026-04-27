@@ -17,16 +17,16 @@ const { t } = useI18n()
     </div>
 
     <!-- Header: tagline centered, switcher start, brand end (stacks on mobile) -->
-    <header class="relative z-20 px-4 sm:px-8 py-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-3">
-        <div class="flex justify-center sm:justify-start order-2 sm:order-1">
+    <header class="relative z-20 px-4 sm:px-8 py-5 border-b border-slate-200/80">
+      <div class="max-w-2xl mx-auto flex flex-col sm:flex-row items-center sm:justify-between gap-3">
+        <div class="flex justify-center sm:justify-start order-2 sm:order-1 leading-none">
           <LanguageSwitcher />
         </div>
-        <p class="order-1 sm:order-2 sm:flex-1 sm:px-4 text-center text-sm sm:text-base font-medium text-slate-500">
+        <p class="order-1 sm:order-2 sm:flex-1 sm:px-4 text-center text-sm sm:text-base font-medium text-slate-500 leading-none m-0">
           {{ t('app.tagline') }}
         </p>
-        <div class="flex justify-center sm:justify-end order-3">
-          <span class="text-sm sm:text-base font-bold text-slate-700/80 tracking-wide">
+        <div class="flex justify-center sm:justify-end order-3 leading-none">
+          <span class="text-sm sm:text-base font-bold text-slate-700/80">
             {{ t('app.name') }}
           </span>
         </div>
@@ -34,9 +34,9 @@ const { t } = useI18n()
     </header>
 
     <!-- Centered glass card -->
-    <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-12 sm:py-16">
+    <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-10 sm:py-14">
       <div
-        class="w-full max-w-2xl rounded-3xl
+        class="w-full max-w-2xl mx-auto rounded-3xl
                bg-white/80 backdrop-blur-xl
                border border-white/60 ring-1 ring-slate-900/5
                shadow-glass

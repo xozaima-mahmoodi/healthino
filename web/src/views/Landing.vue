@@ -16,19 +16,19 @@ const { t } = useI18n()
       <div class="absolute inset-0 dot-grid opacity-60"></div>
     </div>
 
-    <!-- Header: tagline centered, switcher start, brand end (stacks on mobile) -->
-    <header class="relative z-20 px-4 sm:px-8 py-5 border-b border-slate-200/80">
-      <div class="max-w-2xl mx-auto flex flex-col sm:flex-row items-center sm:justify-between gap-3">
+    <!-- Header: brand at start, switcher at end, tagline centered between (stacks on mobile) -->
+    <header class="relative z-20 px-4 sm:px-8 py-5 border-b border-slate-300/50 shadow-sm">
+      <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center sm:justify-between gap-3">
         <div class="flex justify-center sm:justify-start order-2 sm:order-1 leading-none">
-          <LanguageSwitcher />
+          <span class="text-sm sm:text-base font-bold text-slate-700/80">
+            {{ t('app.name') }}
+          </span>
         </div>
         <p class="order-1 sm:order-2 sm:flex-1 sm:px-4 text-center text-sm sm:text-base font-medium text-slate-500 leading-none m-0">
           {{ t('app.tagline') }}
         </p>
         <div class="flex justify-center sm:justify-end order-3 leading-none">
-          <span class="text-sm sm:text-base font-bold text-slate-700/80">
-            {{ t('app.name') }}
-          </span>
+          <LanguageSwitcher />
         </div>
       </div>
     </header>
@@ -36,7 +36,7 @@ const { t } = useI18n()
     <!-- Centered glass card -->
     <section class="relative z-10 flex-1 flex items-center justify-center px-5 sm:px-8 py-10 sm:py-14">
       <div
-        class="w-full max-w-2xl mx-auto rounded-3xl
+        class="w-full max-w-5xl mx-auto rounded-3xl
                bg-white/80 backdrop-blur-xl
                border border-white/60 ring-1 ring-slate-900/5
                shadow-glass
@@ -52,11 +52,11 @@ const { t } = useI18n()
           </svg>
         </div>
 
-        <h1 class="text-2xl sm:text-4xl font-bold text-slate-800 leading-relaxed mx-auto max-w-xl">
+        <h1 class="text-2xl sm:text-4xl font-bold text-slate-800 leading-relaxed sm:whitespace-nowrap">
           {{ t('landing.hero_title') }}
         </h1>
 
-        <p class="mt-5 text-base sm:text-lg font-medium text-slate-600 leading-relaxed mx-auto max-w-xl">
+        <p class="mt-5 text-base sm:text-lg font-medium text-slate-600 leading-relaxed mx-auto max-w-2xl">
           {{ t('landing.hero_sub') }}
         </p>
 

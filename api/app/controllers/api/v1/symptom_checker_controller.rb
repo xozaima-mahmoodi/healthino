@@ -19,6 +19,13 @@ module Api
         render json: serialize(result, params[:locale] || "fa")
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.as_json }, status: :unprocessable_content
+      rescue ActionController::ParameterMissing => e
+        render json: { errors: { e.param => ["is required"] } }, status: :unprocessable_content
+      rescue StandardError => e
+        Rails.logger.error("[SymptomChecker] #{e.class}: #{e.message}")
+        Rails.logger.error(e.backtrace.first(20).join("\n")) if e.backtrace
+        message = Rails.env.production? ? "internal_error" : "#{e.class}: #{e.message}"
+        render json: { errors: { base: [message] } }, status: :internal_server_error
       end
 
       private

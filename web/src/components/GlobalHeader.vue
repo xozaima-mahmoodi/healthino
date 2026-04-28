@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import LanguageSwitcher from './LanguageSwitcher.vue'
 import ThemeToggle from './ThemeToggle.vue'
 import BackButton from './BackButton.vue'
+import HistoryLink from './HistoryLink.vue'
 
 const { t } = useI18n()
 </script>
@@ -61,6 +62,7 @@ const { t } = useI18n()
       </p>
 
       <div class="flex items-center gap-2 leading-none shrink-0">
+        <HistoryLink />
         <BackButton />
         <LanguageSwitcher />
         <ThemeToggle />

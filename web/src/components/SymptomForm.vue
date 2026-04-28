@@ -149,18 +149,45 @@ onBeforeUnmount(() => {
   }
 })
 
+const apiErrorMessages = computed(() => {
+  const err = symptomStore.error
+  if (!err) return []
+  if (err.errors && typeof err.errors === 'object') {
+    return Object.values(err.errors).flat().filter(Boolean).map(String)
+  }
+  if (err.message) return [String(err.message)]
+  return [t('symptom_form.submit_error_generic')]
+})
+
 async function submit() {
-  if (symptomStore.submitting) return
-  if (!validate()) return
+  console.log('[symptom-debug] click → submit()', {
+    submitting: symptomStore.submitting,
+    form: { ...form, attachments: form.attachments.length }
+  })
+  if (symptomStore.submitting) {
+    console.log('[symptom-debug] submit() guarded — already submitting')
+    return
+  }
+  if (!validate()) {
+    console.log('[symptom-debug] submit() blocked by validation', { ...errors })
+    return
+  }
   const symptoms = [t(`symptoms.${form.symptomChoice}`)]
   const extra = form.additionalInfo.trim()
   if (extra) symptoms.push(extra)
-  await symptomStore.analyze({
+  const payload = {
     symptoms,
     severity: Number(form.severity),
     body_area: form.body_area,
     duration_hours: Number(form.duration_hours),
     locale: localeStore.current
+  }
+  console.log('[symptom-debug] → POST /api/v1/symptom_checker', payload)
+  await symptomStore.analyze(payload)
+  console.log('[symptom-debug] ← awaited analyze()', {
+    result: !!symptomStore.result,
+    error: !!symptomStore.error,
+    submitting: symptomStore.submitting
   })
 }
 </script>
@@ -417,6 +444,21 @@ async function submit() {
           >
             {{ errors.duration_hours }}
           </p>
+        </div>
+
+        <div
+          v-if="apiErrorMessages.length"
+          data-testid="submit-error"
+          role="alert"
+          class="rounded-xl p-4 text-sm
+                 bg-red-50 dark:bg-red-950/40
+                 border border-red-200 dark:border-red-700/40
+                 text-red-800 dark:text-red-200"
+        >
+          <p class="font-medium mb-1">{{ t('symptom_form.submit_error_title') }}</p>
+          <ul class="list-disc ps-5 space-y-0.5">
+            <li v-for="(msg, i) in apiErrorMessages" :key="i">{{ msg }}</li>
+          </ul>
         </div>
 
         <button

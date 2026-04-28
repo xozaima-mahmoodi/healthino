@@ -412,3 +412,124 @@ describe('SymptomForm — first aid section', () => {
     expect(text).toContain(faMessages.symptom_form.first_aid.default_1)
   })
 })
+
+describe('SymptomForm — stuck-loading and error recovery', () => {
+  it('shows the analyzing state while analyze() is in flight (no result, no error)', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    let resolveLater
+    vi.spyOn(store, 'analyze').mockImplementation(() => {
+      store.submitting = true
+      return new Promise((resolve) => { resolveLater = resolve })
+    })
+
+    await fillRequired(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await nextTick()
+
+    const submit = wrapper.find('button[type="submit"]')
+    expect(submit.attributes('disabled')).toBeDefined()
+    expect(submit.text()).toBe(faMessages.symptom_form.analyzing)
+    expect(wrapper.find('[data-testid="form-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="result-card"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="submit-error"]').exists()).toBe(false)
+
+    store.submitting = false
+    resolveLater?.()
+    await nextTick()
+  })
+
+  it('recovers (button re-enables, form stays visible) when analyze() rejects with a network error', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    vi.spyOn(store, 'analyze').mockImplementation(async () => {
+      store.submitting = true
+      try {
+        store.error = { message: 'Network Error' }
+      } finally {
+        store.submitting = false
+      }
+    })
+
+    await fillRequired(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await nextTick()
+
+    const submit = wrapper.find('button[type="submit"]')
+    expect(submit.attributes('disabled')).toBeUndefined()
+    expect(submit.text()).toBe(faMessages.symptom_form.submit)
+    expect(wrapper.find('[data-testid="form-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="result-card"]').exists()).toBe(false)
+
+    const banner = wrapper.find('[data-testid="submit-error"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Network Error')
+  })
+
+  it('surfaces Rails 422 field-level error messages in the banner', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    vi.spyOn(store, 'analyze').mockImplementation(async () => {
+      store.submitting = true
+      try {
+        store.error = { errors: { symptoms: ["can't be blank"], severity: ['must be 1..10'] } }
+      } finally {
+        store.submitting = false
+      }
+    })
+
+    await fillRequired(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await nextTick()
+
+    const banner = wrapper.find('[data-testid="submit-error"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain("can't be blank")
+    expect(banner.text()).toContain('must be 1..10')
+
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('does NOT reset the form when analyze() errors out (so the user can fix and retry without re-typing)', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    vi.spyOn(store, 'analyze').mockImplementation(async () => {
+      store.submitting = true
+      try {
+        store.error = { message: 'boom' }
+      } finally {
+        store.submitting = false
+      }
+    })
+
+    await fillRequired(wrapper, { symptom: 'fever', area: 'chest', hours: 8 })
+    await wrapper.find('[data-testid="additional-info-input"]').setValue('keep me')
+    await wrapper.find('form').trigger('submit')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="primary-symptom-select"]').element.value).toBe('fever')
+    expect(wrapper.find('[data-testid="body-area-select"]').element.value).toBe('chest')
+    expect(wrapper.find('[data-testid="duration-input"]').element.value).toBe('8')
+    expect(wrapper.find('[data-testid="additional-info-input"]').element.value).toBe('keep me')
+  })
+
+  it('clears submitting state and error on store.reset() (defends against stale loading on remount)', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.submitting = true
+    store.error = { message: 'old' }
+    await nextTick()
+
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="submit-error"]').exists()).toBe(true)
+
+    store.reset()
+    await nextTick()
+
+    expect(store.submitting).toBe(false)
+    expect(store.error).toBeNull()
+    expect(wrapper.find('button[type="submit"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="submit-error"]').exists()).toBe(false)
+  })
+})

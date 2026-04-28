@@ -6,6 +6,7 @@ Rails.application.routes.draw do
       post "symptom_checker", to: "symptom_checker#create"
       resources :specialties, only: %i[index show]
       resources :doctors, only: %i[index show]
+      resources :assessments, only: %i[index]
     end
   end
 end

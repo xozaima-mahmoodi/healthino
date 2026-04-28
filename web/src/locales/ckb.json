@@ -15,8 +15,10 @@
   },
   "symptom_form": {
     "title": "پشکنینی نیشانەکان",
-    "symptoms_label": "نیشانەکانت هەڵبژێرە یان بنووسە",
-    "symptoms_placeholder": "بۆ نموونە سەرئێشە، تا، کۆکە",
+    "symptoms_label": "نیشانەی سەرەکی خۆت هەڵبژێرە",
+    "symptoms_select_placeholder": "یەکێک هەڵبژێرە…",
+    "additional_info_label": "ئەگەر شتی زیادە هەیە لێرە بینووسە",
+    "additional_info_placeholder": "ڕوونکردنەوەی زیاتر، نیشانەی هاوکات، یان هەر خاڵێک کە بە گرنگی دەزانیت…",
     "severity_label": "ئاست (١ تا ١٠)",
     "body_area_label": "ناوچەی لەش",
     "duration_label": "ماوە (کاتژمێر)",
@@ -28,6 +30,18 @@
     "recommended_doctors": "پزیشکانی پێشنیار کراو",
     "experience_years": "ساڵ ئەزموون",
     "rating": "نمرە"
+  },
+  "symptoms": {
+    "headache": "سەرئێشە",
+    "fever": "تا",
+    "cough": "کۆکە",
+    "nausea": "دڵتێکچوون",
+    "sore_throat": "ئێشی گەروو",
+    "fatigue": "ماندووبوون",
+    "chest_pain": "ئێشی سنگ",
+    "abdominal_pain": "ئێشی زگ",
+    "dizziness": "سەرسوڕمان",
+    "shortness_of_breath": "کورتی هەناسە"
   },
   "body_areas": {
     "head": "سەر",

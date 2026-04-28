@@ -15,8 +15,10 @@
   },
   "symptom_form": {
     "title": "بررسی علائم",
-    "symptoms_label": "علائم خود را انتخاب یا تایپ کنید",
-    "symptoms_placeholder": "مثلاً سردرد، تب، سرفه",
+    "symptoms_label": "علامت اصلی خود را انتخاب کنید",
+    "symptoms_select_placeholder": "یکی را انتخاب کنید…",
+    "additional_info_label": "اگر مورد اضافه ای هست در اینجا ذکر کنید",
+    "additional_info_placeholder": "توضیحات بیشتر، علائم همراه، یا هر نکته‌ای که فکر می‌کنید مهم است…",
     "severity_label": "شدت (۱ تا ۱۰)",
     "body_area_label": "ناحیه بدن",
     "duration_label": "مدت (ساعت)",
@@ -28,6 +30,18 @@
     "recommended_doctors": "پزشکان پیشنهادی",
     "experience_years": "سال تجربه",
     "rating": "امتیاز"
+  },
+  "symptoms": {
+    "headache": "سردرد",
+    "fever": "تب",
+    "cough": "سرفه",
+    "nausea": "تهوع",
+    "sore_throat": "گلودرد",
+    "fatigue": "خستگی",
+    "chest_pain": "درد قفسه سینه",
+    "abdominal_pain": "درد شکم",
+    "dizziness": "سرگیجه",
+    "shortness_of_breath": "تنگی نفس"
   },
   "body_areas": {
     "head": "سر",

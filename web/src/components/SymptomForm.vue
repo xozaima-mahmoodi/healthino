@@ -1,5 +1,5 @@
 <script setup>
-import { reactive } from 'vue'
+import { reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSymptomStore } from '../stores/symptom'
 import { useLocaleStore } from '../stores/locale'
@@ -8,8 +8,15 @@ const { t } = useI18n()
 const symptomStore = useSymptomStore()
 const localeStore = useLocaleStore()
 
+const COMMON_SYMPTOMS = [
+  'headache', 'fever', 'cough', 'nausea',
+  'sore_throat', 'fatigue', 'chest_pain',
+  'abdominal_pain', 'dizziness', 'shortness_of_breath'
+]
+
 const form = reactive({
-  symptomsText: '',
+  symptomChoice: '',
+  additionalInfo: '',
   severity: 5,
   body_area: '',
   duration_hours: null
@@ -17,11 +24,16 @@ const form = reactive({
 
 const bodyAreas = ['head', 'skin', 'chest', 'abdomen', 'joints']
 
+const canSubmit = computed(() => {
+  if (symptomStore.submitting) return false
+  return !!form.symptomChoice
+})
+
 async function submit() {
-  const symptoms = form.symptomsText
-    .split(/[,،]/)
-    .map(s => s.trim())
-    .filter(Boolean)
+  if (!canSubmit.value) return
+  const symptoms = [t(`symptoms.${form.symptomChoice}`)]
+  const extra = form.additionalInfo.trim()
+  if (extra) symptoms.push(extra)
   await symptomStore.analyze({
     symptoms,
     severity: Number(form.severity),
@@ -38,17 +50,38 @@ async function submit() {
       <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         {{ t('symptom_form.symptoms_label') }}
       </label>
-      <input
-        v-model="form.symptomsText"
-        type="text"
-        :placeholder="t('symptom_form.symptoms_placeholder')"
+      <select
+        v-model="form.symptomChoice"
+        data-testid="primary-symptom-select"
         class="w-full px-4 py-3 rounded-lg
+               bg-white dark:bg-slate-900/60
+               border border-slate-300 dark:border-slate-600
+               text-slate-800 dark:text-slate-100
+               focus:ring-2 focus:ring-brand focus:outline-none"
+      >
+        <option value="" disabled>{{ t('symptom_form.symptoms_select_placeholder') }}</option>
+        <option v-for="s in COMMON_SYMPTOMS" :key="s" :value="s">
+          {{ t(`symptoms.${s}`) }}
+        </option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+        {{ t('symptom_form.additional_info_label') }}
+      </label>
+      <textarea
+        v-model="form.additionalInfo"
+        data-testid="additional-info-input"
+        rows="3"
+        :placeholder="t('symptom_form.additional_info_placeholder')"
+        class="w-full px-4 py-3 rounded-lg resize-y
                bg-white dark:bg-slate-900/60
                border border-slate-300 dark:border-slate-600
                text-slate-800 dark:text-slate-100
                placeholder:text-slate-400 dark:placeholder:text-slate-500
                focus:ring-2 focus:ring-brand focus:outline-none"
-      />
+      ></textarea>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -104,7 +137,7 @@ async function submit() {
 
     <button
       type="submit"
-      :disabled="symptomStore.submitting || !form.symptomsText"
+      :disabled="!canSubmit"
       class="w-full py-3 rounded-lg bg-brand text-white font-semibold
              shadow-md hover:bg-brand-dark transition disabled:opacity-50"
     >

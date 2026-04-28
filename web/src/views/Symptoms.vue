@@ -1,9 +1,16 @@
 <script setup>
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import SymptomForm from '../components/SymptomForm.vue'
+import { useSymptomStore } from '../stores/symptom'
 
 const { t } = useI18n()
+const symptomStore = useSymptomStore()
+
+onMounted(() => {
+  symptomStore.reset()
+})
 </script>
 
 <template>

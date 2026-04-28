@@ -88,6 +88,21 @@ describe('SymptomForm — body area select', () => {
   })
 })
 
+describe('SymptomForm — severity (intensity) label', () => {
+  it('uses "شدت درد" (pain intensity) instead of the older "شدت" wording', async () => {
+    const wrapper = await mountForm()
+    const wrap = wrapper.find('[data-testid="severity-input"]').element.parentElement
+    expect(wrap.querySelector('label').textContent).toContain('شدت درد')
+    expect(wrap.querySelector('label').textContent).toContain(faMessages.symptom_form.severity_label)
+  })
+
+  it('marks the severity label with a required asterisk', async () => {
+    const wrapper = await mountForm()
+    const wrap = wrapper.find('[data-testid="severity-input"]').element.parentElement
+    expect(wrap.querySelector('label').textContent).toContain('*')
+  })
+})
+
 describe('SymptomForm — additional info field', () => {
   it('is visible by default (no conditional rendering)', async () => {
     const wrapper = await mountForm()

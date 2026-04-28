@@ -25,15 +25,28 @@
     "attachments_remove": "حذف فایل",
     "severity_label": "شدت (۱ تا ۱۰)",
     "body_area_label": "ناحیه بدن",
+    "body_area_placeholder": "یک ناحیه را انتخاب کنید…",
     "duration_label": "مدت (ساعت)",
     "submit": "تحلیل علائم",
     "analyzing": "در حال تحلیل…",
+    "new_assessment": "ارزیابی جدید",
     "result_title": "نتیجه تریاژ",
     "red_flag_warning": "هشدار: علائم اورژانسی! لطفاً فوراً به اورژانس مراجعه کنید.",
     "recommended_specialty": "تخصص پیشنهادی",
     "recommended_doctors": "پزشکان پیشنهادی",
     "experience_years": "سال تجربه",
-    "rating": "امتیاز"
+    "rating": "امتیاز",
+    "validation": {
+      "symptom_required": "لطفاً علامت اصلی را انتخاب کنید.",
+      "body_area_required": "لطفاً ناحیه بدن را انتخاب کنید.",
+      "duration_required": "لطفاً مدت زمان علائم را به ساعت وارد کنید."
+    },
+    "first_aid": {
+      "title": "اقدامات اولیه و مراقبتی",
+      "default_1": "استراحت کافی داشته باشید و از فعالیت‌های سنگین تا زمان ویزیت پزشک پرهیز کنید.",
+      "default_2": "آب فراوان بنوشید و در صورت تب، دمای بدن را به‌طور منظم پایش کنید.",
+      "default_3": "در صورت تشدید علائم یا بروز نشانه‌های اورژانسی (درد قفسه سینه، تنگی نفس شدید، کاهش هوشیاری)، فوراً با اورژانس تماس بگیرید."
+    }
   },
   "symptoms": {
     "headache": "سردرد",
@@ -49,10 +62,16 @@
   },
   "body_areas": {
     "head": "سر",
-    "skin": "پوست",
+    "neurological": "عصبی و روانی",
+    "eyes_ears": "چشم و گوش",
+    "mouth_throat": "دهان و گلو",
     "chest": "قفسه سینه",
     "abdomen": "شکم",
-    "joints": "مفاصل"
+    "back_spine": "کمر و ستون فقرات",
+    "pelvic": "ناحیه لگن",
+    "joints": "مفاصل",
+    "skin": "پوست",
+    "extremities": "دست و پا"
   },
   "language": "زبان",
   "theme": {

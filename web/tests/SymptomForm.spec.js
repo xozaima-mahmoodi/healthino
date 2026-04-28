@@ -1,8 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import SymptomForm from '../src/components/SymptomForm.vue'
 import faMessages from '../src/locales/fa.json'
+import { useSymptomStore } from '../src/stores/symptom'
 import { makeTestPlugins } from './helpers.js'
+
+async function fillRequired(wrapper, { symptom = 'headache', area = 'head', hours = 3 } = {}) {
+  await wrapper.find('[data-testid="primary-symptom-select"]').setValue(symptom)
+  await wrapper.find('[data-testid="body-area-select"]').setValue(area)
+  await wrapper.find('[data-testid="duration-input"]').setValue(hours)
+}
+
+const SAMPLE_RESULT = {
+  red_flag: false,
+  specialty: { id: 4, name: 'متخصص قلب و عروق' },
+  doctors: [
+    { id: 1, name: 'دکتر احمدی', experience_years: 12, rating: 4.7 },
+    { id: 2, name: 'دکتر کریمی', experience_years: 8,  rating: 4.5 }
+  ]
+}
 
 async function mountForm() {
   const { plugins } = await makeTestPlugins()
@@ -43,13 +60,31 @@ describe('SymptomForm — primary symptom select', () => {
     expect(select.element.value).toBe('cough')
   })
 
-  it('keeps submit disabled until a primary symptom is picked', async () => {
+  it('marks the primary symptom label with a required asterisk', async () => {
     const wrapper = await mountForm()
-    const submit = wrapper.find('button[type="submit"]')
-    expect(submit.attributes('disabled')).toBeDefined()
+    const wrap = wrapper.find('[data-testid="primary-symptom-select"]').element.parentElement
+    expect(wrap.querySelector('label').textContent).toContain('*')
+  })
+})
 
-    await wrapper.find('[data-testid="primary-symptom-select"]').setValue('headache')
-    expect(submit.attributes('disabled')).toBeUndefined()
+describe('SymptomForm — body area select', () => {
+  it('exposes the expanded body-area list (≥10 items, including new ones)', async () => {
+    const wrapper = await mountForm()
+    const select = wrapper.find('[data-testid="body-area-select"]')
+    expect(select.exists()).toBe(true)
+    expect(select.element.tagName).toBe('SELECT')
+
+    const optionValues = select.findAll('option').slice(1).map(o => o.attributes('value'))
+    expect(optionValues.length).toBeGreaterThanOrEqual(10)
+    for (const expected of ['head', 'neurological', 'chest', 'abdomen', 'back_spine', 'pelvic', 'skin']) {
+      expect(optionValues).toContain(expected)
+    }
+  })
+
+  it('marks the body-area label with a required asterisk', async () => {
+    const wrapper = await mountForm()
+    const wrap = wrapper.find('[data-testid="body-area-select"]').element.parentElement
+    expect(wrap.querySelector('label').textContent).toContain('*')
   })
 })
 
@@ -71,11 +106,67 @@ describe('SymptomForm — additional info field', () => {
     expect(info.element.value).toBe('علائم از دیشب شروع شده و با حرکت بدتر می‌شود')
   })
 
-  it('does NOT block submit when left empty', async () => {
+  it('does NOT carry a required-asterisk on its label', async () => {
     const wrapper = await mountForm()
-    await wrapper.find('[data-testid="primary-symptom-select"]').setValue('fever')
-    const submit = wrapper.find('button[type="submit"]')
-    expect(submit.attributes('disabled')).toBeUndefined()
+    const wrap = wrapper.find('[data-testid="additional-info-input"]').element.parentElement
+    expect(wrap.querySelector('label').textContent).not.toContain('*')
+  })
+})
+
+describe('SymptomForm — required-field validation', () => {
+  it('blocks submission and surfaces an error per missing required field', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await wrapper.find('form').trigger('submit')
+
+    expect(analyzeSpy).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="error-symptom"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="error-body-area"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="error-duration"]').exists()).toBe(true)
+
+    expect(wrapper.find('[data-testid="error-symptom"]').text())
+      .toContain(faMessages.symptom_form.validation.symptom_required)
+  })
+
+  it('clears each error as soon as the user fills the corresponding field', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.find('[data-testid="error-symptom"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="primary-symptom-select"]').setValue('cough')
+    expect(wrapper.find('[data-testid="error-symptom"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-body-area"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="body-area-select"]').setValue('chest')
+    expect(wrapper.find('[data-testid="error-body-area"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-duration"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="duration-input"]').setValue(2)
+    expect(wrapper.find('[data-testid="error-duration"]').exists()).toBe(false)
+  })
+
+  it('treats Additional Info and Attachments as optional (no error when empty)', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('form').trigger('submit')
+
+    expect(analyzeSpy).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="error-symptom"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-body-area"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-duration"]').exists()).toBe(false)
+
+    const payload = analyzeSpy.mock.calls[0][0]
+    expect(payload.body_area).toBe('head')
+    expect(payload.duration_hours).toBe(3)
+    expect(payload.symptoms).toEqual([faMessages.symptoms.headache])
   })
 })
 
@@ -171,5 +262,138 @@ describe('SymptomForm — medical document upload', () => {
 
     await wrapper.find('[data-testid="attachment-remove"]').trigger('click')
     expect(wrapper.find('[data-testid="attachments-preview"]').exists()).toBe(false)
+  })
+})
+
+describe('SymptomForm — post-submission result view', () => {
+  it('shows the form card and hides the result card on initial mount', async () => {
+    const wrapper = await mountForm()
+    expect(wrapper.find('[data-testid="form-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="result-card"]').exists()).toBe(false)
+  })
+
+  it('hides the form and shows the result card once the store has a result', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = SAMPLE_RESULT
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="form-card"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="primary-symptom-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="result-card"]').exists()).toBe(true)
+  })
+
+  it('renders the AI feedback (specialty + recommended doctors) inside the result card', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = SAMPLE_RESULT
+    await nextTick()
+
+    const card = wrapper.find('[data-testid="result-card"]')
+    expect(card.text()).toContain(faMessages.symptom_form.result_title)
+    expect(card.find('[data-testid="result-specialty"]').text()).toContain('متخصص قلب و عروق')
+    const docs = card.findAll('[data-testid="result-doctor"]')
+    expect(docs).toHaveLength(2)
+    expect(docs[0].text()).toContain('دکتر احمدی')
+    expect(docs[1].text()).toContain('دکتر کریمی')
+  })
+
+  it('renders a "New Assessment" button on the result card', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = SAMPLE_RESULT
+    await nextTick()
+
+    const btn = wrapper.find('[data-testid="new-assessment-button"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.text()).toBe(faMessages.symptom_form.new_assessment)
+  })
+
+  it('clears the result and brings back an empty form when "New Assessment" is clicked', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    // Fill the form so we can prove it's been reset on the way back.
+    await wrapper.find('[data-testid="primary-symptom-select"]').setValue('headache')
+    await wrapper.find('[data-testid="additional-info-input"]').setValue('شب‌ها بدتر می‌شود')
+    await selectFiles(wrapper, [new File(['x'], 'lab.pdf', { type: 'application/pdf' })])
+    expect(wrapper.findAll('[data-testid="attachment-item"]')).toHaveLength(1)
+
+    store.result = SAMPLE_RESULT
+    await nextTick()
+
+    await wrapper.find('[data-testid="new-assessment-button"]').trigger('click')
+    await nextTick()
+
+    expect(store.result).toBeNull()
+    expect(wrapper.find('[data-testid="result-card"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="form-card"]').exists()).toBe(true)
+
+    expect(wrapper.find('[data-testid="primary-symptom-select"]').element.value).toBe('')
+    expect(wrapper.find('[data-testid="additional-info-input"]').element.value).toBe('')
+    expect(wrapper.findAll('[data-testid="attachment-item"]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="attachments-preview"]').exists()).toBe(false)
+
+    expect(wrapper.find('[data-testid="error-symptom"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-body-area"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-duration"]').exists()).toBe(false)
+  })
+
+  it('renders the red-flag warning when the result indicates one', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = { ...SAMPLE_RESULT, red_flag: true }
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="result-red-flag"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="result-red-flag"]').text())
+      .toContain(faMessages.symptom_form.red_flag_warning)
+  })
+})
+
+describe('SymptomForm — first aid section', () => {
+  it('renders the First Aid section with the bilingual title in the result card', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = SAMPLE_RESULT
+    await nextTick()
+
+    const section = wrapper.find('[data-testid="result-first-aid"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain(faMessages.symptom_form.first_aid.title)
+  })
+
+  it('renders the API-provided first-aid items when present', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = {
+      ...SAMPLE_RESULT,
+      first_aid: ['ابتدا یخ بگذارید', 'دارو بدون تجویز نخورید', 'در صورت تشدید به اورژانس بروید']
+    }
+    await nextTick()
+
+    const items = wrapper.findAll('[data-testid="first-aid-item"]')
+    expect(items).toHaveLength(3)
+    expect(items[0].text()).toBe('ابتدا یخ بگذارید')
+    expect(items[2].text()).toContain('اورژانس')
+  })
+
+  it('falls back to localized default tips when first_aid is missing', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+
+    store.result = SAMPLE_RESULT
+    await nextTick()
+
+    const items = wrapper.findAll('[data-testid="first-aid-item"]')
+    expect(items.length).toBeGreaterThan(0)
+    const text = items.map(i => i.text()).join(' ')
+    expect(text).toContain(faMessages.symptom_form.first_aid.default_1)
   })
 })

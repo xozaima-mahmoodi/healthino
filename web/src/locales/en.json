@@ -1,0 +1,159 @@
+{
+  "app": {
+    "name": "Healthino",
+    "tagline": "Smart triage, informed doctor choice"
+  },
+  "nav": {
+    "home": "Home",
+    "symptoms": "Symptom check",
+    "back": "Back",
+    "history": "Assessment history"
+  },
+  "history": {
+    "title": "Assessment history",
+    "loading": "Loading history…",
+    "error": "Failed to load history. Please try again.",
+    "empty": "No assessments yet. Start your first smart assessment.",
+    "sign_in_required": "Sign in to view your history.",
+    "viewing_patient": "Viewing {name}'s history as a doctor",
+    "intensity_label": "Intensity",
+    "body_area_label": "Area",
+    "duration_label": "Duration",
+    "recommended_specialty": "Recommended specialty"
+  },
+  "toast": {
+    "dismiss": "Dismiss notification",
+    "login_success": "Signed in successfully. Welcome!",
+    "register_success": "Your account was created successfully.",
+    "logout_success": "You have been signed out successfully.",
+    "analysis_success": "Analysis completed successfully — your results are ready.",
+    "profile_update_success": "Profile changes saved successfully.",
+    "login_error": "Sign-in failed. Please try again.",
+    "register_error": "Registration failed. Please try again.",
+    "analysis_error": "Symptom analysis failed. Please try again.",
+    "profile_update_error": "Failed to save profile changes.",
+    "idle_logout": "You were signed out due to inactivity."
+  },
+  "profile": {
+    "title": "My profile",
+    "subtitle": "View and edit your account information.",
+    "name_label": "Full name",
+    "email_label": "Email",
+    "joined_label": "Joined",
+    "edit": "Edit account",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "saved": "Changes saved successfully.",
+    "loading": "Loading…",
+    "sign_in_required": "Sign in to view your profile."
+  },
+  "auth": {
+    "login_title": "Sign in",
+    "login_subtitle": "Sign in to view your history and continue your care.",
+    "register_title": "Create an account",
+    "register_subtitle": "Create an account to keep your assessment history at hand.",
+    "email_label": "Email",
+    "email_placeholder": "you@example.com",
+    "password_label": "Password",
+    "password_hint": "At least 6 characters",
+    "name_label": "Full name",
+    "name_placeholder": "Enter your name",
+    "sign_in": "Sign in",
+    "signing_in": "Signing in…",
+    "create_account": "Create account",
+    "creating": "Creating account…",
+    "no_account": "No account?",
+    "go_register": "Sign up",
+    "have_account": "Have an account?",
+    "go_login": "Sign in",
+    "logout": "Sign out",
+    "profile_my": "My profile",
+    "edit_account": "Edit account",
+    "account_menu": "Account menu",
+    "invalid_credentials": "Invalid email or password."
+  },
+  "doctor": {
+    "title": "Doctor dashboard",
+    "subtitle": "View patients' assessment history by their ID.",
+    "sign_in_required": "Sign in to access the doctor dashboard.",
+    "patient_id_label": "Patient ID",
+    "patient_id_placeholder": "e.g. 1024",
+    "view_history": "View history",
+    "permission_hint": "Only authorized doctors can view patient histories.",
+    "recent_patients": "Recent patients"
+  },
+  "landing": {
+    "hero_title": "Don't worry about sudden symptoms anymore — we're here for you.",
+    "hero_sub": "Healthino's smart symptom analysis flags medical urgencies and recommends the right specialist for you.",
+    "cta_start": "Start smart health assessment"
+  },
+  "symptom_form": {
+    "title": "Symptom check",
+    "symptoms_label": "Choose your main symptom",
+    "symptoms_select_placeholder": "Select one…",
+    "additional_info_label": "Add anything extra here",
+    "additional_info_placeholder": "Additional notes, accompanying symptoms, or anything you think is important…",
+    "attachments_label": "Upload medical documents (optional)",
+    "attachments_hint": "Click to choose files or drop them here",
+    "attachments_types": "Images and PDFs — multiple files supported",
+    "attachments_remove": "Remove file",
+    "severity_label": "Pain intensity (1–10)",
+    "body_area_label": "Body area",
+    "body_area_placeholder": "Choose an area…",
+    "duration_label": "Duration (hours)",
+    "submit": "Analyze symptoms",
+    "analyzing": "Analyzing…",
+    "submit_error_title": "Submission failed",
+    "submit_error_generic": "Something went wrong. Please check your connection and try again.",
+    "new_assessment": "New assessment",
+    "result_title": "Triage result",
+    "red_flag_warning": "Warning: emergency symptoms! Please go to the ER immediately.",
+    "recommended_specialty": "Recommended specialty",
+    "recommended_doctors": "Recommended doctors",
+    "experience_years": "years of experience",
+    "rating": "Rating",
+    "validation": {
+      "symptom_required": "Please choose a main symptom.",
+      "body_area_required": "Please choose a body area.",
+      "duration_required": "Please enter how many hours the symptoms have lasted."
+    },
+    "first_aid": {
+      "title": "Initial care and first aid",
+      "default_1": "Get plenty of rest and avoid heavy activity until you see a doctor.",
+      "default_2": "Drink plenty of fluids and monitor your temperature regularly if you have a fever.",
+      "default_3": "If symptoms worsen or you notice emergency signs (chest pain, severe shortness of breath, loss of consciousness), call emergency services immediately."
+    }
+  },
+  "symptoms": {
+    "headache": "Headache",
+    "fever": "Fever",
+    "cough": "Cough",
+    "nausea": "Nausea",
+    "sore_throat": "Sore throat",
+    "fatigue": "Fatigue",
+    "chest_pain": "Chest pain",
+    "abdominal_pain": "Abdominal pain",
+    "dizziness": "Dizziness",
+    "shortness_of_breath": "Shortness of breath"
+  },
+  "body_areas": {
+    "head": "Head",
+    "neurological": "Neurological",
+    "eyes_ears": "Eyes & ears",
+    "mouth_throat": "Mouth & throat",
+    "chest": "Chest",
+    "abdomen": "Abdomen",
+    "back_spine": "Back & spine",
+    "pelvic": "Pelvic",
+    "joints": "Joints",
+    "skin": "Skin",
+    "extremities": "Limbs"
+  },
+  "language": "Language",
+  "theme": {
+    "toggle": "Toggle light/dark",
+    "light": "Light",
+    "dark": "Dark"
+  }
+}

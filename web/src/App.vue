@@ -3,10 +3,13 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useLocaleStore } from './stores/locale'
 import { useThemeStore } from './stores/theme'
+import { useIdleLogout } from './composables/useIdleLogout'
 import ToastContainer from './components/ToastContainer.vue'
 
 const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
+
+useIdleLogout()
 
 onMounted(() => {
   localeStore.set(localeStore.current)

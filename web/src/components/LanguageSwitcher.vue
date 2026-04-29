@@ -4,7 +4,8 @@ import { useLocaleStore } from '../stores/locale'
 const locale = useLocaleStore()
 const options = [
   { code: 'fa',  label: 'فارسی' },
-  { code: 'ckb', label: 'کوردی' }
+  { code: 'ckb', label: 'کوردی' },
+  { code: 'en',  label: 'EN' }
 ]
 </script>
 

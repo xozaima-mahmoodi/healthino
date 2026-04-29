@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import faMessages from '../src/locales/fa.json'
 import ckbMessages from '../src/locales/ckb.json'
+import enMessages from '../src/locales/en.json'
 import { createAppRouter } from '../src/router'
 
 export async function makeRouter(initialPath = '/') {
@@ -30,7 +31,7 @@ export function makeI18n(locale = 'fa') {
     legacy: false,
     locale,
     fallbackLocale: 'fa',
-    messages: { fa: faMessages, ckb: ckbMessages }
+    messages: { fa: faMessages, ckb: ckbMessages, en: enMessages }
   })
 }
 

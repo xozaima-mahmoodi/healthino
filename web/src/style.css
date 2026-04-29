@@ -63,4 +63,56 @@
   html.dark .dot-grid {
     background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   }
+
+  /* Touch-friendly range slider — 24px thumb so it stays tappable on mobile. */
+  .touch-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 28px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .touch-slider:focus { outline: none; }
+  .touch-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 9999px;
+    background: theme('colors.slate.200');
+  }
+  html.dark .touch-slider::-webkit-slider-runnable-track {
+    background: theme('colors.slate.700');
+  }
+  .touch-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    margin-top: -9px; /* center 24px thumb on a 6px track */
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: theme('colors.brand.DEFAULT');
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 4px rgba(2, 6, 23, 0.25);
+  }
+  html.dark .touch-slider::-webkit-slider-thumb {
+    border-color: theme('colors.slate.900');
+  }
+  .touch-slider::-moz-range-track {
+    height: 6px;
+    border-radius: 9999px;
+    background: theme('colors.slate.200');
+  }
+  html.dark .touch-slider::-moz-range-track {
+    background: theme('colors.slate.700');
+  }
+  .touch-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    background: theme('colors.brand.DEFAULT');
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 4px rgba(2, 6, 23, 0.25);
+  }
+  html.dark .touch-slider::-moz-range-thumb {
+    border-color: theme('colors.slate.900');
+  }
 }

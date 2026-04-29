@@ -205,8 +205,9 @@ async function submit() {
       v-if="!symptomStore.result"
       key="form"
       data-testid="form-card"
-      class="rounded-2xl p-5 sm:p-7
-             bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+      class="rounded-2xl p-4 sm:p-7
+             bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+             sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
              border border-white/60 dark:border-white/10
              ring-1 ring-slate-900/5 dark:ring-emerald-400/15
              shadow-glass dark:shadow-glass-dk"
@@ -276,9 +277,9 @@ async function submit() {
             @dragleave="onDragLeave"
             @drop="onDrop"
             :class="[
-              'relative flex flex-col items-center justify-center gap-2 px-6 py-8 rounded-xl cursor-pointer text-center',
+              'relative flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-10 sm:py-8 rounded-xl cursor-pointer text-center min-h-[140px]',
               'border-2 border-dashed transition',
-              'bg-white/60 dark:bg-slate-900/40 backdrop-blur-md',
+              'bg-white/70 dark:bg-slate-900/50 sm:bg-white/60 sm:dark:bg-slate-900/40 backdrop-blur-sm sm:backdrop-blur-md',
               isDragging
                 ? 'border-brand bg-brand/5 dark:bg-emerald-900/20'
                 : 'border-slate-300 dark:border-slate-600 hover:border-brand hover:bg-brand/5 dark:hover:bg-emerald-900/20'
@@ -319,7 +320,8 @@ async function submit() {
               data-testid="attachment-item"
               :data-name="att.name"
               class="relative rounded-xl overflow-hidden
-                     bg-white/80 dark:bg-slate-800/50 backdrop-blur-md
+                     bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
+                     backdrop-blur-sm sm:backdrop-blur-md
                      border border-white/60 dark:border-white/10
                      ring-1 ring-slate-900/5 dark:ring-white/5"
             >
@@ -352,15 +354,15 @@ async function submit() {
                 :title="t('symptom_form.attachments_remove')"
                 data-testid="attachment-remove"
                 @click="removeAttachment(att.id)"
-                class="absolute top-1.5 end-1.5 inline-flex h-6 w-6 items-center justify-center rounded-full
-                       bg-white/90 dark:bg-slate-900/80 backdrop-blur
+                class="absolute top-1.5 end-1.5 inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full
+                       bg-white/95 dark:bg-slate-900/85 backdrop-blur
                        border border-white/70 dark:border-white/10
                        text-slate-700 dark:text-slate-200
                        hover:bg-red-50 hover:text-red-600
                        dark:hover:bg-red-900/40 dark:hover:text-red-300
                        transition shadow"
               >
-                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"
+                <svg class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2.4"
                      stroke-linecap="round" stroke-linejoin="round">
                   <path d="M18 6 6 18M6 6l12 12"/>
@@ -382,9 +384,9 @@ async function submit() {
               min="1"
               max="10"
               data-testid="severity-input"
-              class="w-full accent-brand"
+              class="touch-slider w-full accent-brand"
             />
-            <div class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ form.severity }}</div>
+            <div class="text-sm text-slate-500 dark:text-slate-400 mt-1 tabular-nums">{{ form.severity }}</div>
           </div>
 
           <div>
@@ -483,8 +485,9 @@ async function submit() {
       v-else
       key="result"
       data-testid="result-card"
-      class="rounded-2xl p-5 sm:p-7 space-y-5
-             bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+      class="rounded-2xl p-4 sm:p-7 space-y-5
+             bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+             sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
              border border-white/60 dark:border-white/10
              ring-1 ring-slate-900/5 dark:ring-emerald-400/15
              shadow-glass dark:shadow-glass-dk"
@@ -562,18 +565,19 @@ async function submit() {
             v-for="doc in symptomStore.result.doctors"
             :key="doc.id"
             data-testid="result-doctor"
-            class="rounded-xl p-4 flex items-center justify-between
-                   bg-white/80 dark:bg-slate-800/50 backdrop-blur-md
+            class="rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3
+                   bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
+                   backdrop-blur-sm sm:backdrop-blur-md
                    border border-white/60 dark:border-white/10
                    ring-1 ring-slate-900/5 dark:ring-white/5"
           >
-            <div>
-              <div class="font-semibold text-slate-900 dark:text-slate-100">{{ doc.name }}</div>
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-900 dark:text-slate-100 truncate">{{ doc.name }}</div>
               <div class="text-sm text-slate-500 dark:text-slate-400">
                 {{ doc.experience_years }} {{ t('symptom_form.experience_years') }}
               </div>
             </div>
-            <div class="text-sm">
+            <div class="text-sm shrink-0">
               <span class="font-semibold text-amber-500 dark:text-amber-400">★ {{ doc.rating.toFixed(1) }}</span>
             </div>
           </li>

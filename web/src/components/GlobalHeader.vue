@@ -23,7 +23,7 @@ onMounted(() => {
                  bg-white/70 dark:bg-slate-900/60
                  border-b border-slate-300/50 dark:border-slate-700/50
                  shadow-sm dark:shadow-none">
-    <div class="max-w-6xl mx-auto px-4 sm:px-8 py-4 flex items-center justify-between gap-3">
+    <div class="max-w-6xl mx-auto px-3 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
       <RouterLink
         to="/"
         data-testid="brand-link"
@@ -39,7 +39,7 @@ onMounted(() => {
           data-testid="brand-logo"
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 100 32"
-          class="h-8 sm:h-9 w-auto"
+          class="h-7 sm:h-9 w-auto"
           role="img"
           :aria-label="t('app.name')"
         >
@@ -69,7 +69,7 @@ onMounted(() => {
         {{ t('app.tagline') }}
       </p>
 
-      <div class="flex items-center gap-2 leading-none shrink-0">
+      <div class="flex items-center gap-1 sm:gap-2 leading-none shrink-0">
         <HistoryLink v-if="auth.isAuthenticated" />
         <BackButton />
         <LanguageSwitcher />

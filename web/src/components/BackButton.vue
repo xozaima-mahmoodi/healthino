@@ -21,7 +21,7 @@ function goBack() {
     :aria-label="t('nav.back')"
     :title="t('nav.back')"
     class="group inline-flex items-center justify-center
-           h-10 w-10 rounded-full
+           h-9 w-9 sm:h-10 sm:w-10 rounded-full
            bg-white/70 dark:bg-slate-800/60 backdrop-blur-md
            border border-white/60 dark:border-white/10
            ring-1 ring-slate-900/5 dark:ring-white/5

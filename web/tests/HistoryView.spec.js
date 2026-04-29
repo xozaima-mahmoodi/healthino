@@ -142,9 +142,12 @@ describe('HistoryView — timeline rendering', () => {
     const card = wrapper.find('[data-testid="history-item"] article')
     const cls = card.classes()
     expect(cls).toContain('rounded-2xl')
-    expect(cls).toContain('bg-white/80')
-    expect(cls).toContain('dark:bg-slate-800/40')
-    expect(cls).toContain('backdrop-blur-xl')
+    // Mobile-first: lighter blur + more opaque on small screens, full glass on sm+.
+    expect(cls).toContain('bg-white/90')
+    expect(cls).toContain('backdrop-blur-md')
+    expect(cls).toContain('sm:bg-white/80')
+    expect(cls).toContain('sm:dark:bg-slate-800/40')
+    expect(cls).toContain('sm:backdrop-blur-xl')
     expect(cls).toContain('shadow-glass')
   })
 

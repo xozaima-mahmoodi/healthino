@@ -84,8 +84,9 @@ onMounted(() => {
         <div
           v-if="!authStore.isAuthenticated"
           data-testid="history-needs-auth"
-          class="rounded-2xl p-6 text-center space-y-4
-                 bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+          class="rounded-2xl p-5 sm:p-6 text-center space-y-4
+                 bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+                 sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
                  border border-white/60 dark:border-white/10
                  ring-1 ring-slate-900/5 dark:ring-emerald-400/15
                  shadow-glass dark:shadow-glass-dk
@@ -104,8 +105,9 @@ onMounted(() => {
         <div
           v-else-if="historyStore.loading"
           data-testid="history-loading"
-          class="rounded-2xl p-6 text-center
-                 bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+          class="rounded-2xl p-5 sm:p-6 text-center
+                 bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+                 sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
                  border border-white/60 dark:border-white/10
                  shadow-glass dark:shadow-glass-dk
                  text-slate-500 dark:text-slate-400 animate-pulse"
@@ -127,8 +129,9 @@ onMounted(() => {
         <div
           v-else-if="historyStore.items.length === 0"
           data-testid="history-empty"
-          class="rounded-2xl p-8 text-center
-                 bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+          class="rounded-2xl p-6 sm:p-8 text-center
+                 bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+                 sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
                  border border-white/60 dark:border-white/10
                  ring-1 ring-slate-900/5 dark:ring-emerald-400/15
                  shadow-glass dark:shadow-glass-dk
@@ -140,9 +143,9 @@ onMounted(() => {
         <ol
           v-else
           data-testid="history-timeline"
-          class="relative ps-8"
+          class="relative ps-6 sm:ps-8"
         >
-          <span class="absolute top-2 bottom-2 start-3 w-px bg-slate-200 dark:bg-slate-700"
+          <span class="absolute top-2 bottom-2 start-2 sm:start-3 w-px bg-slate-200 dark:bg-slate-700"
                 aria-hidden="true"></span>
 
           <li
@@ -150,17 +153,18 @@ onMounted(() => {
             :key="a.id"
             data-testid="history-item"
             :data-id="a.id"
-            class="relative pb-6 last:pb-0"
+            class="relative pb-5 sm:pb-6 last:pb-0"
           >
             <span
-              class="absolute -start-6 top-3 h-3 w-3 rounded-full
+              class="absolute -start-5 sm:-start-6 top-3 h-3 w-3 rounded-full
                      bg-brand ring-4 ring-white dark:ring-slate-950"
               aria-hidden="true"
             ></span>
 
             <article
-              class="rounded-2xl p-5
-                     bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
+              class="rounded-2xl p-4 sm:p-5
+                     bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+                     sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
                      border border-white/60 dark:border-white/10
                      ring-1 ring-slate-900/5 dark:ring-emerald-400/15
                      shadow-glass dark:shadow-glass-dk"

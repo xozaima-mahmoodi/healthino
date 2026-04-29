@@ -120,6 +120,93 @@ describe('UserProfile.vue', () => {
   })
 })
 
+describe('UserProfile.vue — password change', () => {
+  async function enterEdit() {
+    const { wrapper } = await mountProfile()
+    await wrapper.find('[data-testid="profile-edit-button"]').trigger('click')
+    return wrapper
+  }
+
+  it('renders the new + confirm password inputs as type="password" with eye toggles', async () => {
+    const wrapper = await enterEdit()
+    const newPw = wrapper.find('[data-testid="profile-new-password-input"]')
+    const confirmPw = wrapper.find('[data-testid="profile-confirm-password-input"]')
+
+    expect(newPw.exists()).toBe(true)
+    expect(confirmPw.exists()).toBe(true)
+    expect(newPw.attributes('type')).toBe('password')
+    expect(confirmPw.attributes('type')).toBe('password')
+
+    await wrapper.find('[data-testid="profile-new-password-toggle"]').trigger('click')
+    expect(newPw.attributes('type')).toBe('text')
+    await wrapper.find('[data-testid="profile-new-password-toggle"]').trigger('click')
+    expect(newPw.attributes('type')).toBe('password')
+  })
+
+  it('keeps Save enabled when both password fields are blank (profile-only edit)', async () => {
+    const wrapper = await enterEdit()
+    const save = wrapper.find('[data-testid="profile-save-button"]')
+    expect(save.attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="profile-password-error"]').exists()).toBe(false)
+  })
+
+  it('disables Save and shows the mismatch hint when the two passwords differ', async () => {
+    const wrapper = await enterEdit()
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('SuperSecret1')
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('Different99')
+    await nextTick()
+
+    const save = wrapper.find('[data-testid="profile-save-button"]')
+    expect(save.attributes('disabled')).toBeDefined()
+
+    const hint = wrapper.find('[data-testid="profile-password-error"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toBe(faMessages.profile.password_mismatch)
+  })
+
+  it('disables Save and shows the too-short hint when the new password is < 8 chars', async () => {
+    const wrapper = await enterEdit()
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('short7c')
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('short7c')
+    await nextTick()
+
+    const save = wrapper.find('[data-testid="profile-save-button"]')
+    expect(save.attributes('disabled')).toBeDefined()
+
+    const hint = wrapper.find('[data-testid="profile-password-error"]')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toBe(faMessages.profile.password_too_short)
+  })
+
+  it('enables Save and clears the hint once both passwords match and meet the 8-char minimum', async () => {
+    const wrapper = await enterEdit()
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('LongEnough1')
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('LongEnough1')
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="profile-save-button"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="profile-password-error"]').exists()).toBe(false)
+  })
+
+  it('forwards password + password_confirmation to updateProfile and shows the password-success toast', async () => {
+    const wrapper = await enterEdit()
+    const auth = useAuthStore()
+    const updateSpy = vi.spyOn(auth, 'updateProfile').mockResolvedValue(true)
+
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('LongEnough1')
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('LongEnough1')
+    await wrapper.find('[data-testid="profile-edit-form"]').trigger('submit')
+    await nextTick()
+
+    expect(updateSpy).toHaveBeenCalledTimes(1)
+    const payload = updateSpy.mock.calls[0][0]
+    expect(payload.password).toBe('LongEnough1')
+    expect(payload.password_confirmation).toBe('LongEnough1')
+    expect(payload.name).toBe('خزیمه محمودی')
+    expect(payload.email).toBe('k@gmail.com')
+  })
+})
+
 describe('auth.updateProfile', () => {
   it('PATCHes /api/v1/user with trimmed payload and stores the returned user', async () => {
     await makeTestPlugins({ path: '/' })

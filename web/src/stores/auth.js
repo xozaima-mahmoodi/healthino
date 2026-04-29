@@ -109,6 +109,8 @@ export const useAuthStore = defineStore('auth', {
         const body = { ...payload }
         if (typeof body.email === 'string') body.email = sanitizeEmail(body.email)
         if (typeof body.name === 'string') body.name = body.name.trim()
+        // password / password_confirmation are passed through as-is — trimming would
+        // silently change the user's intended secret.
         const { data } = await api.patch('/api/v1/user', body)
         this.setUser(data.user)
         return true

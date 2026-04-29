@@ -10,13 +10,24 @@ const { t, locale } = useI18n()
 const auth = useAuthStore()
 const toast = useToastStore()
 
+const PASSWORD_MIN_LENGTH = 8
+
 const editing = ref(false)
 const justSaved = ref(false)
-const form = reactive({ name: '', email: '' })
+const showNewPassword = ref(false)
+const showConfirmPassword = ref(false)
+const form = reactive({
+  name: '',
+  email: '',
+  password: '',
+  password_confirmation: ''
+})
 
 function syncFormFromUser() {
   form.name = auth.user?.name || ''
   form.email = auth.user?.email || ''
+  form.password = ''
+  form.password_confirmation = ''
 }
 
 const cleanEmail = computed(() => sanitizeEmail(form.email))
@@ -33,15 +44,37 @@ const errorMessages = computed(() => {
   return []
 })
 
+const wantsPasswordChange = computed(
+  () => form.password.length > 0 || form.password_confirmation.length > 0
+)
+
+const passwordsMatch = computed(
+  () => !wantsPasswordChange.value || form.password === form.password_confirmation
+)
+
+const passwordTooShort = computed(
+  () => wantsPasswordChange.value && form.password.length < PASSWORD_MIN_LENGTH
+)
+
+const passwordError = computed(() => {
+  if (!wantsPasswordChange.value) return ''
+  if (passwordTooShort.value) return t('profile.password_too_short')
+  if (!passwordsMatch.value) return t('profile.password_mismatch')
+  return ''
+})
+
 const canSubmit = computed(() =>
   !auth.submitting &&
   form.name.trim().length >= 2 &&
   cleanEmail.value.includes('@') &&
-  cleanEmail.value.length > 3
+  cleanEmail.value.length > 3 &&
+  (!wantsPasswordChange.value || (passwordsMatch.value && !passwordTooShort.value))
 )
 
 const dateFormatter = computed(() => {
-  const tag = locale.value === 'ckb' ? 'ckb-Arab' : 'fa-IR'
+  const tag = locale.value === 'ckb' ? 'ckb-Arab'
+            : locale.value === 'en'  ? 'en-US'
+            : 'fa-IR'
   try {
     return new Intl.DateTimeFormat(tag, { year: 'numeric', month: 'long', day: 'numeric' })
   } catch {
@@ -63,25 +96,39 @@ function startEdit() {
   syncFormFromUser()
   auth.error = null
   justSaved.value = false
+  showNewPassword.value = false
+  showConfirmPassword.value = false
   editing.value = true
 }
 
 function cancelEdit() {
   syncFormFromUser()
   auth.error = null
+  showNewPassword.value = false
+  showConfirmPassword.value = false
   editing.value = false
 }
 
 async function save() {
   if (!canSubmit.value) return
-  const ok = await auth.updateProfile({
+  const payload = {
     name: form.name.trim(),
     email: cleanEmail.value
-  })
+  }
+  const passwordChanged = wantsPasswordChange.value
+  if (passwordChanged) {
+    payload.password = form.password
+    payload.password_confirmation = form.password_confirmation
+  }
+  const ok = await auth.updateProfile(payload)
   if (ok) {
     editing.value = false
     justSaved.value = true
-    toast.success(t('toast.profile_update_success'))
+    toast.success(
+      passwordChanged
+        ? t('toast.password_update_success')
+        : t('toast.profile_update_success')
+    )
   } else {
     toast.error(t('toast.profile_update_error'))
   }
@@ -278,6 +325,122 @@ onMounted(() => {
                        text-slate-800 dark:text-slate-100
                        focus:ring-2 focus:ring-brand focus:outline-none"
               />
+            </div>
+
+            <div
+              data-testid="profile-password-section"
+              class="rounded-xl border border-slate-200/80 dark:border-white/10
+                     bg-white/60 dark:bg-slate-900/30 p-4 space-y-3"
+            >
+              <div>
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {{ t('profile.password_section_title') }}
+                </p>
+                <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {{ t('profile.password_section_hint') }}
+                </p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  {{ t('profile.new_password_label') }}
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="form.password"
+                    :type="showNewPassword ? 'text' : 'password'"
+                    autocomplete="new-password"
+                    minlength="8"
+                    data-testid="profile-new-password-input"
+                    :aria-invalid="passwordTooShort || (wantsPasswordChange && !passwordsMatch)"
+                    class="w-full ps-4 pe-11 py-3 rounded-lg
+                           bg-white dark:bg-slate-900/60
+                           border border-slate-300 dark:border-slate-600
+                           text-slate-800 dark:text-slate-100
+                           focus:ring-2 focus:ring-brand focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    data-testid="profile-new-password-toggle"
+                    :aria-label="showNewPassword ? t('profile.hide_password') : t('profile.show_password')"
+                    :title="showNewPassword ? t('profile.hide_password') : t('profile.show_password')"
+                    @click="showNewPassword = !showNewPassword"
+                    class="absolute inset-y-0 end-2 inline-flex h-full w-9 items-center justify-center
+                           text-slate-500 dark:text-slate-300 hover:text-brand-dark dark:hover:text-emerald-300
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-ring rounded-md"
+                  >
+                    <svg v-if="!showNewPassword" class="h-5 w-5" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg v-else class="h-5 w-5" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.6 19.6 0 0 1 4.22-5.34"/>
+                      <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a19.66 19.66 0 0 1-3.18 4.19"/>
+                      <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"/>
+                      <path d="M1 1l22 22"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  {{ t('profile.confirm_password_label') }}
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="form.password_confirmation"
+                    :type="showConfirmPassword ? 'text' : 'password'"
+                    autocomplete="new-password"
+                    minlength="8"
+                    data-testid="profile-confirm-password-input"
+                    :aria-invalid="wantsPasswordChange && !passwordsMatch"
+                    class="w-full ps-4 pe-11 py-3 rounded-lg
+                           bg-white dark:bg-slate-900/60
+                           border border-slate-300 dark:border-slate-600
+                           text-slate-800 dark:text-slate-100
+                           focus:ring-2 focus:ring-brand focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    data-testid="profile-confirm-password-toggle"
+                    :aria-label="showConfirmPassword ? t('profile.hide_password') : t('profile.show_password')"
+                    :title="showConfirmPassword ? t('profile.hide_password') : t('profile.show_password')"
+                    @click="showConfirmPassword = !showConfirmPassword"
+                    class="absolute inset-y-0 end-2 inline-flex h-full w-9 items-center justify-center
+                           text-slate-500 dark:text-slate-300 hover:text-brand-dark dark:hover:text-emerald-300
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-ring rounded-md"
+                  >
+                    <svg v-if="!showConfirmPassword" class="h-5 w-5" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg v-else class="h-5 w-5" viewBox="0 0 24 24"
+                         fill="none" stroke="currentColor" stroke-width="2"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a19.6 19.6 0 0 1 4.22-5.34"/>
+                      <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a19.66 19.66 0 0 1-3.18 4.19"/>
+                      <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"/>
+                      <path d="M1 1l22 22"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <p
+                v-if="passwordError"
+                data-testid="profile-password-error"
+                role="alert"
+                class="text-xs text-red-600 dark:text-red-400"
+              >
+                {{ passwordError }}
+              </p>
             </div>
 
             <div>

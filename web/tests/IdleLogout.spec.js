@@ -44,8 +44,8 @@ describe('useIdleLogout', () => {
     vi.useRealTimers()
   })
 
-  it('exports a 30-second testing default (matches the spec the user is QA-ing)', () => {
-    expect(IDLE_TIMEOUT_MS).toBe(30 * 1000)
+  it('uses a 15-minute inactivity window by default', () => {
+    expect(IDLE_TIMEOUT_MS).toBe(15 * 60 * 1000)
   })
 
   it('logs the user out after the timeout expires with no activity', async () => {

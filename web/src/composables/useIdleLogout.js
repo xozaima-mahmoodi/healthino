@@ -4,8 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
 
-// 30 s while we're QA-testing the flow. Bump back to 5 * 60 * 1000 (5 min) for production.
-export const IDLE_TIMEOUT_MS = 30 * 1000
+// 15-minute inactivity window before we sign the user out.
+export const IDLE_TIMEOUT_MS = 15 * 60 * 1000
 
 const ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll']
 

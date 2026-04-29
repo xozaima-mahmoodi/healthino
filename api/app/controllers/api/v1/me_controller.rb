@@ -5,15 +5,26 @@ module Api
 
       before_action :authenticate_user!
 
-      ALLOWED_UPDATE_FIELDS = %i[name email preferred_locale].freeze
+      PROFILE_FIELDS = %i[name email preferred_locale].freeze
+      PASSWORD_FIELDS = %i[password password_confirmation].freeze
 
       def show
         render json: { user: serialize(current_user) }
       end
 
       def update
-        attrs = update_params
-        if current_user.update(attrs)
+        profile_attrs  = params.permit(*PROFILE_FIELDS).to_h.compact_blank
+        password_attrs = params.permit(*PASSWORD_FIELDS).to_h
+
+        if password_attrs[:password].present?
+          if password_attrs[:password] != password_attrs[:password_confirmation]
+            return render json: { errors: { password_confirmation: ["doesn't match password"] } },
+                          status: :unprocessable_content
+          end
+          profile_attrs.merge!(password_attrs)
+        end
+
+        if current_user.update(profile_attrs)
           render json: { user: serialize(current_user) }
         else
           render json: { errors: current_user.errors.as_json },
@@ -22,11 +33,6 @@ module Api
       end
 
       private
-
-      def update_params
-        permitted = params.permit(*ALLOWED_UPDATE_FIELDS).to_h
-        permitted.compact_blank
-      end
 
       def serialize(u)
         {

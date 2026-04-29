@@ -32,6 +32,7 @@
     "register_error": "Registration failed. Please try again.",
     "analysis_error": "Symptom analysis failed. Please try again.",
     "profile_update_error": "Failed to save profile changes.",
+    "password_update_success": "Password updated successfully.",
     "idle_logout": "You were signed out due to inactivity."
   },
   "profile": {
@@ -46,7 +47,15 @@
     "cancel": "Cancel",
     "saved": "Changes saved successfully.",
     "loading": "Loading…",
-    "sign_in_required": "Sign in to view your profile."
+    "sign_in_required": "Sign in to view your profile.",
+    "password_section_title": "Change password",
+    "password_section_hint": "To change your password, fill in the fields below. Otherwise leave them blank.",
+    "new_password_label": "New password",
+    "confirm_password_label": "Confirm password",
+    "password_mismatch": "Passwords don't match.",
+    "password_too_short": "Password must be at least 8 characters.",
+    "show_password": "Show password",
+    "hide_password": "Hide password"
   },
   "auth": {
     "login_title": "Sign in",

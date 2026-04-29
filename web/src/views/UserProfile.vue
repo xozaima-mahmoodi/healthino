@@ -3,10 +3,12 @@ import { reactive, ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { useToastStore } from '../stores/toast'
 import { sanitizeEmail } from '../utils/text'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
+const toast = useToastStore()
 
 const editing = ref(false)
 const justSaved = ref(false)
@@ -79,6 +81,9 @@ async function save() {
   if (ok) {
     editing.value = false
     justSaved.value = true
+    toast.success(t('toast.profile_update_success'))
+  } else {
+    toast.error(t('toast.profile_update_error'))
   }
 }
 

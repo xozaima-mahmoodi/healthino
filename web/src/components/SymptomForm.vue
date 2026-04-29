@@ -3,10 +3,12 @@ import { reactive, ref, computed, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSymptomStore } from '../stores/symptom'
 import { useLocaleStore } from '../stores/locale'
+import { useToastStore } from '../stores/toast'
 
 const { t } = useI18n()
 const symptomStore = useSymptomStore()
 const localeStore = useLocaleStore()
+const toast = useToastStore()
 
 const COMMON_SYMPTOMS = [
   'headache', 'fever', 'cough', 'nausea',
@@ -183,12 +185,17 @@ async function submit() {
     locale: localeStore.current
   }
   console.log('[symptom-debug] → POST /api/v1/symptom_checker', payload)
-  await symptomStore.analyze(payload)
+  const ok = await symptomStore.analyze(payload)
   console.log('[symptom-debug] ← awaited analyze()', {
     result: !!symptomStore.result,
     error: !!symptomStore.error,
     submitting: symptomStore.submitting
   })
+  if (ok) {
+    toast.success(t('toast.analysis_success'))
+  } else if (symptomStore.error) {
+    toast.error(t('toast.analysis_error'))
+  }
 }
 </script>
 

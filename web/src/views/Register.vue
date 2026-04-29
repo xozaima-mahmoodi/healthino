@@ -5,12 +5,14 @@ import { RouterLink, useRouter } from 'vue-router'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { useLocaleStore } from '../stores/locale'
+import { useToastStore } from '../stores/toast'
 import { sanitizeEmail } from '../utils/text'
 
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 const localeStore = useLocaleStore()
+const toast = useToastStore()
 
 const form = reactive({
   name: '',
@@ -48,7 +50,12 @@ async function submit() {
     password: form.password,
     preferred_locale: localeStore.current
   })
-  if (ok) router.push('/')
+  if (ok) {
+    toast.success(t('toast.register_success'))
+    router.push('/')
+  } else {
+    toast.error(t('toast.register_error'))
+  }
 }
 </script>
 

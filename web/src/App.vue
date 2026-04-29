@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useLocaleStore } from './stores/locale'
 import { useThemeStore } from './stores/theme'
+import ToastContainer from './components/ToastContainer.vue'
 
 const localeStore = useLocaleStore()
 const themeStore = useThemeStore()
@@ -15,4 +16,5 @@ onMounted(() => {
 
 <template>
   <RouterView />
+  <ToastContainer />
 </template>

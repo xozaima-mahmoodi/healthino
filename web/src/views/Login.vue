@@ -4,12 +4,14 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter, useRoute } from 'vue-router'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { useToastStore } from '../stores/toast'
 import { sanitizeEmail } from '../utils/text'
 
 const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const toast = useToastStore()
 
 const form = reactive({ email: '', password: '' })
 
@@ -36,8 +38,11 @@ async function submit() {
   if (!canSubmit.value) return
   const ok = await auth.login({ email: cleanEmail.value, password: form.password })
   if (ok) {
+    toast.success(t('toast.login_success'))
     const next = typeof route.query.next === 'string' ? route.query.next : '/'
     router.push(next)
+  } else {
+    toast.error(t('toast.login_error'))
   }
 }
 </script>

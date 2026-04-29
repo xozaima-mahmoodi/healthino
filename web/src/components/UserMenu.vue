@@ -3,10 +3,12 @@ import { ref, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useToastStore } from '../stores/toast'
 
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
+const toast = useToastStore()
 
 const open = ref(false)
 const rootEl = ref(null)
@@ -41,6 +43,7 @@ onBeforeUnmount(() => {
 function logout() {
   close()
   auth.logout()
+  toast.success(t('toast.logout_success'))
   router.push('/')
 }
 </script>

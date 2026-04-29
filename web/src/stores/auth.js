@@ -102,6 +102,23 @@ export const useAuthStore = defineStore('auth', {
         return null
       }
     },
+    async updateProfile(payload) {
+      this.submitting = true
+      this.error = null
+      try {
+        const body = { ...payload }
+        if (typeof body.email === 'string') body.email = sanitizeEmail(body.email)
+        if (typeof body.name === 'string') body.name = body.name.trim()
+        const { data } = await api.patch('/api/v1/user', body)
+        this.setUser(data.user)
+        return true
+      } catch (e) {
+        this.error = e?.response?.data || { message: e?.message || 'request_failed' }
+        return false
+      } finally {
+        this.submitting = false
+      }
+    },
     logout() {
       this.clear()
     }

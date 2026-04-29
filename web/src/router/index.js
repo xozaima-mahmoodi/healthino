@@ -5,6 +5,7 @@ import HistoryView from '../views/HistoryView.vue'
 import DoctorDashboard from '../views/DoctorDashboard.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
+import UserProfile from '../views/UserProfile.vue'
 import { useAuthStore } from '../stores/auth'
 
 export const routes = [
@@ -12,6 +13,8 @@ export const routes = [
   { path: '/symptoms', name: 'symptoms', component: Symptoms, meta: { requiresAuth: true } },
   { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
   { path: '/doctor', name: 'doctor', component: DoctorDashboard, meta: { requiresAuth: true } },
+  { path: '/profile', name: 'profile', component: UserProfile, meta: { requiresAuth: true } },
+  { path: '/profile/edit', redirect: { name: 'profile' } },
   { path: '/login', name: 'login', component: Login },
   { path: '/register', name: 'register', component: Register }
 ]

@@ -160,7 +160,7 @@ describe('UserMenu — dropdown + logout', () => {
     return { wrapper, router, auth }
   }
 
-  it('opens the dropdown on trigger click and exposes profile/edit/logout entries', async () => {
+  it('opens the dropdown on trigger click and exposes only profile + logout entries', async () => {
     const { wrapper } = await mountUserMenu()
     const trigger = wrapper.find('[data-testid="user-menu-trigger"]')
     expect(trigger.attributes('aria-expanded')).toBe('false')
@@ -169,10 +169,10 @@ describe('UserMenu — dropdown + logout', () => {
 
     expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(wrapper.find('[data-testid="user-menu-profile"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="user-menu-edit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="user-menu-edit"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(true)
     expect(wrapper.text()).toContain(faMessages.auth.profile_my)
-    expect(wrapper.text()).toContain(faMessages.auth.edit_account)
+    expect(wrapper.text()).not.toContain(faMessages.auth.edit_account)
     expect(wrapper.text()).toContain(faMessages.auth.logout)
   })
 

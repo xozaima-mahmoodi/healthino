@@ -6,7 +6,8 @@ Rails.application.routes.draw do
       post "symptom_checker", to: "symptom_checker#create"
       post "auth/register",   to: "auth#register"
       post "auth/login",      to: "auth#login"
-      get  "me",              to: "me#show"
+      get   "me",   to: "me#show"
+      patch "user", to: "me#update"
       resources :specialties, only: %i[index show]
       resources :doctors,     only: %i[index show]
       resources :assessments, only: %i[index]

@@ -147,25 +147,6 @@ function logout() {
         {{ t('auth.profile_my') }}
       </RouterLink>
 
-      <RouterLink
-        to="/profile/edit"
-        role="menuitem"
-        data-testid="user-menu-edit"
-        @click="close"
-        class="flex items-center gap-2 px-4 py-2 text-sm
-               text-slate-700 dark:text-slate-200
-               hover:bg-slate-100 dark:hover:bg-slate-700/60
-               focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-700/60"
-      >
-        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-             aria-hidden="true">
-          <path d="M12 20h9"/>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
-        </svg>
-        {{ t('auth.edit_account') }}
-      </RouterLink>
-
       <div class="my-1 h-px bg-slate-200/70 dark:bg-white/10" aria-hidden="true"></div>
 
       <button

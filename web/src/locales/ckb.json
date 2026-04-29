@@ -41,6 +41,9 @@
     "have_account": "هەژمارت هەیە؟",
     "go_login": "چوونەژوورەوە",
     "logout": "دەرچوون",
+    "profile_my": "پرۆفایلی من",
+    "edit_account": "دەستکاری زانیاری",
+    "account_menu": "مێنوی هەژمار",
     "invalid_credentials": "ئیمەیڵ یان وشەی نهێنی هەڵەیە."
   },
   "doctor": {

@@ -41,6 +41,9 @@
     "have_account": "حساب دارید؟",
     "go_login": "ورود",
     "logout": "خروج",
+    "profile_my": "پروفایل من",
+    "edit_account": "ویرایش اطلاعات",
+    "account_menu": "منوی حساب کاربری",
     "invalid_credentials": "ایمیل یا گذرواژه نادرست است."
   },
   "doctor": {

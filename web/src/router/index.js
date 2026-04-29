@@ -5,15 +5,30 @@ import HistoryView from '../views/HistoryView.vue'
 import DoctorDashboard from '../views/DoctorDashboard.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
+import { useAuthStore } from '../stores/auth'
 
-export const router = createRouter({
-  history: createWebHistory(),
-  routes: [
-    { path: '/', name: 'landing', component: Landing },
-    { path: '/symptoms', name: 'symptoms', component: Symptoms },
-    { path: '/history', name: 'history', component: HistoryView },
-    { path: '/doctor', name: 'doctor', component: DoctorDashboard },
-    { path: '/login', name: 'login', component: Login },
-    { path: '/register', name: 'register', component: Register }
-  ]
-})
+export const routes = [
+  { path: '/', name: 'landing', component: Landing },
+  { path: '/symptoms', name: 'symptoms', component: Symptoms, meta: { requiresAuth: true } },
+  { path: '/history', name: 'history', component: HistoryView, meta: { requiresAuth: true } },
+  { path: '/doctor', name: 'doctor', component: DoctorDashboard, meta: { requiresAuth: true } },
+  { path: '/login', name: 'login', component: Login },
+  { path: '/register', name: 'register', component: Register }
+]
+
+export function registerAuthGuard(routerInstance) {
+  routerInstance.beforeEach((to) => {
+    if (!to.meta?.requiresAuth) return true
+    const auth = useAuthStore()
+    if (auth.isAuthenticated) return true
+    return { path: '/login', query: { next: to.fullPath } }
+  })
+}
+
+export function createAppRouter(history = createWebHistory()) {
+  const r = createRouter({ history, routes })
+  registerAuthGuard(r)
+  return r
+}
+
+export const router = createAppRouter()

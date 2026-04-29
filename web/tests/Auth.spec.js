@@ -13,7 +13,7 @@ import Login from '../src/views/Login.vue'
 import Register from '../src/views/Register.vue'
 import faMessages from '../src/locales/fa.json'
 import { useAuthStore } from '../src/stores/auth'
-import { makeTestPlugins } from './helpers.js'
+import { makeTestPlugins, makeGuardedTestPlugins } from './helpers.js'
 
 async function mountLogin() {
   const { plugins, router } = await makeTestPlugins({ path: '/login' })
@@ -127,9 +127,107 @@ describe('GlobalHeader — post-login identity', () => {
     expect(wrapper.find('[data-testid="login-link"]').exists()).toBe(false)
     const menu = wrapper.find('[data-testid="user-menu"]')
     expect(menu.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="user-menu-trigger"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="user-display-name"]').text()).toBe('خزیمه محمودی')
     expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="history-link"]').exists()).toBe(true)
+  })
+
+  it('hides the user menu and shows the Login link when no session exists', async () => {
+    const { plugins } = await makeTestPlugins({ path: '/' })
+    const { default: GlobalHeader } = await import('../src/components/GlobalHeader.vue')
+    const wrapper = mount(GlobalHeader, { global: { plugins } })
+    await nextTick()
+
+    expect(wrapper.find('[data-testid="user-menu"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="user-menu-trigger"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="login-link"]').exists()).toBe(true)
+  })
+})
+
+describe('UserMenu — dropdown + logout', () => {
+  async function mountUserMenu() {
+    const { plugins, router } = await makeTestPlugins({ path: '/' })
+    const auth = useAuthStore()
+    auth.setSession({
+      token: 'tok-xyz',
+      user: { id: 7, name: 'Sara', display_name: 'Sara', email: 's@x.io', is_doctor: false }
+    })
+    const { default: UserMenu } = await import('../src/components/UserMenu.vue')
+    const wrapper = mount(UserMenu, { global: { plugins }, attachTo: document.body })
+    await nextTick()
+    return { wrapper, router, auth }
+  }
+
+  it('opens the dropdown on trigger click and exposes profile/edit/logout entries', async () => {
+    const { wrapper } = await mountUserMenu()
+    const trigger = wrapper.find('[data-testid="user-menu-trigger"]')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+
+    await trigger.trigger('click')
+
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.find('[data-testid="user-menu-profile"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="user-menu-edit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(faMessages.auth.profile_my)
+    expect(wrapper.text()).toContain(faMessages.auth.edit_account)
+    expect(wrapper.text()).toContain(faMessages.auth.logout)
+  })
+
+  it('logout clears the session and navigates back to "/"', async () => {
+    const { wrapper, router, auth } = await mountUserMenu()
+    expect(auth.isAuthenticated).toBe(true)
+    expect(auth.token).toBeTruthy()
+
+    const pushSpy = vi.spyOn(router, 'push')
+
+    await wrapper.find('[data-testid="user-menu-trigger"]').trigger('click')
+    await wrapper.find('[data-testid="logout-button"]').trigger('click')
+    await nextTick()
+
+    expect(auth.isAuthenticated).toBe(false)
+    expect(auth.token).toBeNull()
+    expect(auth.user).toBeNull()
+    expect(pushSpy).toHaveBeenCalledWith('/')
+  })
+})
+
+describe('Router auth guard', () => {
+  it('redirects unauthenticated users from /symptoms to /login with ?next=/symptoms', async () => {
+    const { router } = await makeGuardedTestPlugins({ path: '/' })
+    const auth = useAuthStore()
+    expect(auth.isAuthenticated).toBe(false)
+
+    await router.push('/symptoms')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(router.currentRoute.value.query.next).toBe('/symptoms')
+  })
+
+  it('redirects unauthenticated users from /history to /login with ?next=/history', async () => {
+    const { router } = await makeGuardedTestPlugins({ path: '/' })
+    await router.push('/history')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(router.currentRoute.value.query.next).toBe('/history')
+  })
+
+  it('lets authenticated users reach a protected route directly', async () => {
+    const { router } = await makeGuardedTestPlugins({ path: '/' })
+    const auth = useAuthStore()
+    auth.setSession({
+      token: 'tok-1',
+      user: { id: 1, name: 'A', display_name: 'A', email: 'a@b.io', is_doctor: false }
+    })
+
+    await router.push('/symptoms')
+    await router.isReady()
+
+    expect(router.currentRoute.value.path).toBe('/symptoms')
   })
 })
 

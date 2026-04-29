@@ -71,9 +71,9 @@ onMounted(() => {
 
       <div class="flex items-center gap-2 leading-none shrink-0">
         <HistoryLink v-if="auth.isAuthenticated" />
-        <UserMenu />
         <BackButton />
         <LanguageSwitcher />
+        <UserMenu />
         <ThemeToggle />
       </div>
     </div>

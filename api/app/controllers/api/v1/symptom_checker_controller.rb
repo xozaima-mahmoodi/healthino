@@ -1,6 +1,8 @@
 module Api
   module V1
     class SymptomCheckerController < ApplicationController
+      include Authentication
+
       def create
         symptoms = Array(params[:symptoms]).map(&:to_s).map(&:strip).reject(&:blank?)
         if symptoms.empty?
@@ -8,15 +10,21 @@ module Api
           return
         end
 
+        locale = params[:locale] || "fa"
+
         result = SymptomChecker::Engine.new(
           symptoms: symptoms,
           severity: params[:severity],
           body_area: params[:body_area],
           duration_hours: params[:duration_hours],
-          locale: params[:locale] || "fa"
+          user: current_user,
+          locale: locale
         ).call
 
-        render json: serialize(result, params[:locale] || "fa")
+        payload = serialize(result, locale)
+        persist_assessment(symptoms, payload) if current_user
+
+        render json: payload
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.as_json }, status: :unprocessable_content
       rescue ActionController::ParameterMissing => e
@@ -29,6 +37,21 @@ module Api
       end
 
       private
+
+      def persist_assessment(symptoms, payload)
+        primary = symptoms.first
+        extras  = symptoms[1..].to_a.join(" ").presence
+        intensity = (params[:severity].presence || 5).to_i.clamp(1, 10)
+
+        current_user.assessments.create!(
+          primary_symptom: primary,
+          additional_info: extras,
+          body_area: params[:body_area].presence,
+          intensity: intensity,
+          duration_hours: params[:duration_hours].presence&.to_i,
+          result: payload
+        )
+      end
 
       def serialize(result, locale)
         {

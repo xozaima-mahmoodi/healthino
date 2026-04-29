@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, RouterLink } from 'vue-router'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import { useHistoryStore } from '../stores/history'
 import { useAuthStore } from '../stores/auth'
@@ -84,14 +84,21 @@ onMounted(() => {
         <div
           v-if="!authStore.isAuthenticated"
           data-testid="history-needs-auth"
-          class="rounded-2xl p-6 text-center
+          class="rounded-2xl p-6 text-center space-y-4
                  bg-white/80 dark:bg-slate-800/40 backdrop-blur-xl
                  border border-white/60 dark:border-white/10
                  ring-1 ring-slate-900/5 dark:ring-emerald-400/15
                  shadow-glass dark:shadow-glass-dk
                  text-slate-600 dark:text-slate-300"
         >
-          {{ t('history.sign_in_required') }}
+          <p>{{ t('history.sign_in_required') }}</p>
+          <RouterLink
+            to="/login?next=/history"
+            class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg
+                   bg-brand text-white font-semibold shadow-md hover:bg-brand-dark transition"
+          >
+            {{ t('auth.sign_in') }}
+          </RouterLink>
         </div>
 
         <div

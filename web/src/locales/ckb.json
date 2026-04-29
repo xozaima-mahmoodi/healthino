@@ -21,6 +21,28 @@
     "duration_label": "ماوە",
     "recommended_specialty": "پسپۆڕی پێشنیار کراو"
   },
+  "auth": {
+    "login_title": "چوونەژوورەوە بۆ هەژمار",
+    "login_subtitle": "بۆ بینینی مێژوو و بەردەوامبوون بە چاودێریت، بچۆ ژوورەوە.",
+    "register_title": "دروستکردنی هەژمار",
+    "register_subtitle": "بە دروستکردنی هەژمارێک، مێژووی هەڵسەنگاندنەکانت لەبەردەستدا دەبێت.",
+    "email_label": "ئیمەیڵ",
+    "email_placeholder": "you@example.com",
+    "password_label": "وشەی نهێنی",
+    "password_hint": "هیچ نەبێت ٦ پیت",
+    "name_label": "ناو",
+    "name_placeholder": "ناوت بنووسە",
+    "sign_in": "چوونەژوورەوە",
+    "signing_in": "لە چوونەژوورەوە…",
+    "create_account": "دروستکردنی هەژمار",
+    "creating": "لە دروستکردنی هەژماردا…",
+    "no_account": "هەژمارت نییە؟",
+    "go_register": "تۆمارکردن",
+    "have_account": "هەژمارت هەیە؟",
+    "go_login": "چوونەژوورەوە",
+    "logout": "دەرچوون",
+    "invalid_credentials": "ئیمەیڵ یان وشەی نهێنی هەڵەیە."
+  },
   "doctor": {
     "title": "داشبۆردی پزیشک",
     "subtitle": "مێژووی هەڵسەنگاندنی نەخۆشەکان بە ناسنامەی ئەوان ببینە.",

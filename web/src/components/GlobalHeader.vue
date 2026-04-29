@@ -1,12 +1,20 @@
 <script setup>
+import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import LanguageSwitcher from './LanguageSwitcher.vue'
 import ThemeToggle from './ThemeToggle.vue'
 import BackButton from './BackButton.vue'
 import HistoryLink from './HistoryLink.vue'
+import UserMenu from './UserMenu.vue'
+import { useAuthStore } from '../stores/auth'
 
 const { t } = useI18n()
+const auth = useAuthStore()
+
+onMounted(() => {
+  if (auth.isAuthenticated && !auth.user) auth.fetchMe()
+})
 </script>
 
 <template>
@@ -62,7 +70,8 @@ const { t } = useI18n()
       </p>
 
       <div class="flex items-center gap-2 leading-none shrink-0">
-        <HistoryLink />
+        <HistoryLink v-if="auth.isAuthenticated" />
+        <UserMenu />
         <BackButton />
         <LanguageSwitcher />
         <ThemeToggle />

@@ -21,6 +21,28 @@
     "duration_label": "مدت",
     "recommended_specialty": "تخصص پیشنهادی"
   },
+  "auth": {
+    "login_title": "ورود به حساب",
+    "login_subtitle": "برای مشاهده تاریخچه و ادامه روند درمان، وارد شوید.",
+    "register_title": "ساخت حساب کاربری",
+    "register_subtitle": "با ایجاد حساب، تاریخچه ارزیابی‌های خود را در دسترس داشته باشید.",
+    "email_label": "ایمیل",
+    "email_placeholder": "you@example.com",
+    "password_label": "گذرواژه",
+    "password_hint": "حداقل ۶ کاراکتر",
+    "name_label": "نام و نام خانوادگی",
+    "name_placeholder": "نام خود را وارد کنید",
+    "sign_in": "ورود",
+    "signing_in": "در حال ورود…",
+    "create_account": "ایجاد حساب",
+    "creating": "در حال ساخت حساب…",
+    "no_account": "حساب ندارید؟",
+    "go_register": "ثبت‌نام",
+    "have_account": "حساب دارید؟",
+    "go_login": "ورود",
+    "logout": "خروج",
+    "invalid_credentials": "ایمیل یا گذرواژه نادرست است."
+  },
   "doctor": {
     "title": "داشبورد پزشک",
     "subtitle": "تاریخچه ارزیابی بیماران را با شناسه آن‌ها مشاهده کنید.",

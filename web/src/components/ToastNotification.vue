@@ -14,16 +14,18 @@ const variant = computed(() => {
   switch (props.toast.type) {
     case 'success':
       return {
-        ring: 'ring-emerald-400/40 dark:ring-emerald-300/30',
+        ring: 'ring-emerald-400/50 dark:ring-emerald-300/30',
         accent: 'bg-emerald-500/90 dark:bg-emerald-400/90',
         text: 'text-emerald-900 dark:text-emerald-100',
+        glow: 'shadow-[0_10px_36px_-6px_rgba(16,185,129,0.55)] dark:shadow-[0_10px_36px_-6px_rgba(16,185,129,0.45)]',
         icon: 'check'
       }
     case 'error':
       return {
-        ring: 'ring-red-400/50 dark:ring-red-300/30',
-        accent: 'bg-red-500/90 dark:bg-red-400/90',
-        text: 'text-red-900 dark:text-red-100',
+        ring: 'ring-rose-400/55 dark:ring-rose-300/35',
+        accent: 'bg-rose-600/90 dark:bg-rose-500/90',
+        text: 'text-rose-900 dark:text-rose-100',
+        glow: 'shadow-[0_10px_36px_-6px_rgba(220,38,38,0.55)] dark:shadow-[0_10px_36px_-6px_rgba(244,63,94,0.45)]',
         icon: 'cross'
       }
     default:
@@ -31,6 +33,7 @@ const variant = computed(() => {
         ring: 'ring-slate-300/60 dark:ring-white/10',
         accent: 'bg-slate-500/80 dark:bg-slate-300/70',
         text: 'text-slate-800 dark:text-slate-100',
+        glow: 'shadow-glass dark:shadow-glass-dk',
         icon: 'info'
       }
   }
@@ -46,12 +49,11 @@ function close() {
     role="status"
     :data-testid="`toast-${toast.type}`"
     :data-toast-id="toast.id"
-    class="pointer-events-auto relative flex items-start gap-3 ps-3 pe-4 py-3 min-w-[260px] max-w-sm rounded-2xl
-           bg-white/85 dark:bg-slate-800/70 backdrop-blur-xl
-           border border-white/60 dark:border-white/10
-           ring-1 shadow-glass dark:shadow-glass-dk
-           overflow-hidden"
-    :class="variant.ring"
+    class="pointer-events-auto relative flex items-start gap-3 ps-3 pe-4 py-3 w-full sm:min-w-[300px] sm:w-auto sm:max-w-md rounded-2xl
+           bg-white/95 dark:bg-slate-800/90 backdrop-blur-xl
+           border border-white/70 dark:border-white/10
+           ring-2 overflow-hidden"
+    :class="[variant.ring, variant.glow]"
   >
     <span
       aria-hidden="true"
@@ -61,20 +63,21 @@ function close() {
 
     <span
       aria-hidden="true"
-      class="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white"
+      :data-testid="`toast-icon-${variant.icon}`"
+      class="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white shadow-sm"
       :class="variant.accent"
     >
-      <svg v-if="variant.icon === 'check'" class="h-4 w-4" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2.6"
+      <svg v-if="variant.icon === 'check'" class="h-5 w-5" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="3"
            stroke-linecap="round" stroke-linejoin="round">
         <path d="M20 6 9 17l-5-5"/>
       </svg>
-      <svg v-else-if="variant.icon === 'cross'" class="h-4 w-4" viewBox="0 0 24 24"
-           fill="none" stroke="currentColor" stroke-width="2.6"
+      <svg v-else-if="variant.icon === 'cross'" class="h-5 w-5" viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" stroke-width="3"
            stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 6 6 18M6 6l12 12"/>
       </svg>
-      <svg v-else class="h-4 w-4" viewBox="0 0 24 24"
+      <svg v-else class="h-5 w-5" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="2.4"
            stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="9"/>

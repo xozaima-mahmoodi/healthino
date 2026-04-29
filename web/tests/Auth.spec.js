@@ -97,7 +97,7 @@ describe('Login.vue', () => {
     expect(banner.text()).toContain(faMessages.auth.invalid_credentials)
   })
 
-  it('respects ?next= when redirecting after a successful login', async () => {
+  it('always redirects to "/" after a successful login, ignoring any ?next= hint', async () => {
     const { plugins, router } = await makeTestPlugins({ path: '/login?next=/symptoms' })
     const wrapper = mount(Login, { global: { plugins } })
     const auth = useAuthStore()
@@ -108,7 +108,8 @@ describe('Login.vue', () => {
     await wrapper.find('[data-testid="login-password"]').setValue('secret123')
     await wrapper.find('form').trigger('submit')
 
-    expect(pushSpy).toHaveBeenCalledWith('/symptoms')
+    expect(pushSpy).toHaveBeenCalledTimes(1)
+    expect(pushSpy).toHaveBeenCalledWith('/')
   })
 })
 
@@ -195,7 +196,7 @@ describe('UserMenu — dropdown + logout', () => {
 })
 
 describe('Router auth guard', () => {
-  it('redirects unauthenticated users from /symptoms to /login with ?next=/symptoms', async () => {
+  it('redirects unauthenticated users from /symptoms to /login (no ?next=, login always lands on /)', async () => {
     const { router } = await makeGuardedTestPlugins({ path: '/' })
     const auth = useAuthStore()
     expect(auth.isAuthenticated).toBe(false)
@@ -204,16 +205,16 @@ describe('Router auth guard', () => {
     await router.isReady()
 
     expect(router.currentRoute.value.path).toBe('/login')
-    expect(router.currentRoute.value.query.next).toBe('/symptoms')
+    expect(router.currentRoute.value.query.next).toBeUndefined()
   })
 
-  it('redirects unauthenticated users from /history to /login with ?next=/history', async () => {
+  it('redirects unauthenticated users from /history to /login (no ?next=)', async () => {
     const { router } = await makeGuardedTestPlugins({ path: '/' })
     await router.push('/history')
     await router.isReady()
 
     expect(router.currentRoute.value.path).toBe('/login')
-    expect(router.currentRoute.value.query.next).toBe('/history')
+    expect(router.currentRoute.value.query.next).toBeUndefined()
   })
 
   it('lets authenticated users reach a protected route directly', async () => {

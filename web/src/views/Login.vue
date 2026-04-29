@@ -1,7 +1,7 @@
 <script setup>
 import { reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, useRouter, useRoute } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toast'
@@ -9,7 +9,6 @@ import { sanitizeEmail } from '../utils/text'
 
 const { t } = useI18n()
 const router = useRouter()
-const route = useRoute()
 const auth = useAuthStore()
 const toast = useToastStore()
 
@@ -39,8 +38,7 @@ async function submit() {
   const ok = await auth.login({ email: cleanEmail.value, password: form.password })
   if (ok) {
     toast.success(t('toast.login_success'))
-    const next = typeof route.query.next === 'string' ? route.query.next : '/'
-    router.push(next)
+    router.push('/')
   } else {
     toast.error(t('toast.login_error'))
   }

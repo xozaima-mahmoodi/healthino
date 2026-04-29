@@ -11,7 +11,9 @@ const toastStore = useToastStore()
       data-testid="toast-container"
       aria-live="polite"
       aria-atomic="false"
-      class="pointer-events-none fixed top-4 end-4 z-[100] flex flex-col gap-2 items-end"
+      class="pointer-events-none fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-[200]
+             w-full max-w-sm sm:max-w-md px-3 sm:px-0
+             flex flex-col-reverse gap-2 items-center"
     >
       <TransitionGroup name="toast">
         <ToastNotification
@@ -27,14 +29,14 @@ const toastStore = useToastStore()
 <style scoped>
 .toast-enter-active,
 .toast-leave-active {
-  transition: opacity 200ms ease, transform 200ms ease;
+  transition: opacity 220ms ease, transform 220ms ease;
 }
 .toast-enter-from {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(12px);
 }
 .toast-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(8px);
 }
 </style>

@@ -94,7 +94,7 @@ onMounted(() => {
         >
           <p>{{ t('history.sign_in_required') }}</p>
           <RouterLink
-            to="/login?next=/history"
+            to="/login"
             class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg
                    bg-brand text-white font-semibold shadow-md hover:bg-brand-dark transition"
           >

@@ -24,7 +24,7 @@ export function registerAuthGuard(routerInstance) {
     if (!to.meta?.requiresAuth) return true
     const auth = useAuthStore()
     if (auth.isAuthenticated) return true
-    return { path: '/login', query: { next: to.fullPath } }
+    return { path: '/login' }
   })
 }
 

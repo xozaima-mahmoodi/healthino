@@ -43,12 +43,21 @@ module Api
         extras  = symptoms[1..].to_a.join(" ").presence
         intensity = (params[:severity].presence || 5).to_i.clamp(1, 10)
 
+        medical_history = ActiveModel::Type::Boolean.new.cast(params[:medical_history]) || false
+        medication      = ActiveModel::Type::Boolean.new.cast(params[:medication]) || false
+
         current_user.assessments.create!(
           primary_symptom: primary,
           additional_info: extras,
           body_area: params[:body_area].presence,
           intensity: intensity,
           duration_hours: params[:duration_hours].presence&.to_i,
+          gender: params[:gender].presence,
+          age: params[:age].presence&.to_i,
+          medical_history: medical_history,
+          medical_history_details: medical_history ? params[:medical_history_details].presence : nil,
+          medication: medication,
+          medication_details: medication ? params[:medication_details].presence : nil,
           result: payload
         )
       end

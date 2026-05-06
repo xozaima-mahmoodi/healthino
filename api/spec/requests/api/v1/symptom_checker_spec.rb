@@ -84,4 +84,88 @@ RSpec.describe "POST /api/v1/symptom_checker" do
       expect(body["specialty"]["name"]).to eq("مغز و اعصاب")
     end
   end
+
+  context "with demographics + medical history (authenticated)" do
+    let(:user) { create(:user) }
+    let(:auth_headers) { headers.merge("Authorization" => "Bearer #{user.api_token}") }
+
+    let(:full_payload) do
+      {
+        symptoms: ["headache"],
+        severity: 4,
+        body_area: "head",
+        duration_hours: 6,
+        gender: "female",
+        age: 34,
+        medical_history: true,
+        medical_history_details: "Diabetes",
+        medication: true,
+        medication_details: "Metformin",
+        locale: "fa"
+      }
+    end
+
+    it "stores gender and age on the persisted Assessment" do
+      post "/api/v1/symptom_checker", params: full_payload.to_json, headers: auth_headers
+      expect(response).to have_http_status(:ok)
+
+      assessment = user.assessments.last
+      expect(assessment.gender).to eq("female")
+      expect(assessment.age).to eq(34)
+    end
+
+    it "stores medical_history flag and details when checked" do
+      post "/api/v1/symptom_checker", params: full_payload.to_json, headers: auth_headers
+
+      assessment = user.assessments.last
+      expect(assessment.medical_history).to be true
+      expect(assessment.medical_history_details).to eq("Diabetes")
+    end
+
+    it "stores medication flag and details when checked" do
+      post "/api/v1/symptom_checker", params: full_payload.to_json, headers: auth_headers
+
+      assessment = user.assessments.last
+      expect(assessment.medication).to be true
+      expect(assessment.medication_details).to eq("Metformin")
+    end
+
+    it "drops the details when the corresponding flag is false" do
+      payload = full_payload.merge(
+        medical_history: false,
+        medical_history_details: "ignored",
+        medication: false,
+        medication_details: "ignored"
+      )
+      post "/api/v1/symptom_checker", params: payload.to_json, headers: auth_headers
+
+      assessment = user.assessments.last
+      expect(assessment.medical_history).to be false
+      expect(assessment.medical_history_details).to be_nil
+      expect(assessment.medication).to be false
+      expect(assessment.medication_details).to be_nil
+    end
+
+    it "returns 422 when medical_history is true but details are missing" do
+      payload = full_payload.merge(medical_history: true, medical_history_details: "")
+      expect {
+        post "/api/v1/symptom_checker", params: payload.to_json, headers: auth_headers
+      }.not_to change(user.assessments, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      body = JSON.parse(response.body)
+      expect(body["errors"]).to have_key("medical_history_details")
+    end
+
+    it "returns 422 when medication is true but details are missing" do
+      payload = full_payload.merge(medication: true, medication_details: "")
+      expect {
+        post "/api/v1/symptom_checker", params: payload.to_json, headers: auth_headers
+      }.not_to change(user.assessments, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      body = JSON.parse(response.body)
+      expect(body["errors"]).to have_key("medication_details")
+    end
+  end
 end

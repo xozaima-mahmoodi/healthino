@@ -24,19 +24,30 @@ const BODY_AREAS = [
 
 const ACCEPTED_TYPES = 'image/*,application/pdf'
 
+const GENDER_OPTIONS = ['male', 'female', 'other']
+
 const initialFormState = () => ({
   symptomChoice: '',
   additionalInfo: '',
   severity: 5,
   body_area: '',
   duration_hours: null,
+  gender: '',
+  age: null,
+  medical_history: false,
+  medical_history_details: '',
+  medication: false,
+  medication_details: '',
   attachments: []
 })
 
 const initialErrorsState = () => ({
   symptomChoice: '',
   body_area: '',
-  duration_hours: ''
+  duration_hours: '',
+  age: '',
+  medical_history_details: '',
+  medication_details: ''
 })
 
 const form = reactive(initialFormState())
@@ -110,12 +121,43 @@ function validate() {
   if (!(Number(form.duration_hours) > 0)) {
     errors.duration_hours = t('symptom_form.validation.duration_required')
   }
+  if (form.age !== null && form.age !== '' && !(Number(form.age) > 0 && Number(form.age) < 150)) {
+    errors.age = t('symptom_form.validation.age_invalid')
+  }
+  if (form.medical_history && !form.medical_history_details.trim()) {
+    errors.medical_history_details = t('symptom_form.validation.medical_history_details_required')
+  }
+  if (form.medication && !form.medication_details.trim()) {
+    errors.medication_details = t('symptom_form.validation.medication_details_required')
+  }
   return !errors.symptomChoice && !errors.body_area && !errors.duration_hours
+    && !errors.age && !errors.medical_history_details && !errors.medication_details
 }
 
 watch(() => form.symptomChoice, (v) => { if (v) errors.symptomChoice = '' })
 watch(() => form.body_area, (v) => { if (v) errors.body_area = '' })
 watch(() => form.duration_hours, (v) => { if (Number(v) > 0) errors.duration_hours = '' })
+watch(() => form.medical_history, (v) => {
+  if (!v) {
+    form.medical_history_details = ''
+    errors.medical_history_details = ''
+  }
+})
+watch(() => form.medical_history_details, (v) => {
+  if (v && v.trim()) errors.medical_history_details = ''
+})
+watch(() => form.medication, (v) => {
+  if (!v) {
+    form.medication_details = ''
+    errors.medication_details = ''
+  }
+})
+watch(() => form.medication_details, (v) => {
+  if (v && v.trim()) errors.medication_details = ''
+})
+watch(() => form.age, (v) => {
+  if (v === null || v === '' || (Number(v) > 0 && Number(v) < 150)) errors.age = ''
+})
 
 function resetForm() {
   for (const a of form.attachments) {
@@ -182,6 +224,12 @@ async function submit() {
     severity: Number(form.severity),
     body_area: form.body_area,
     duration_hours: Number(form.duration_hours),
+    gender: form.gender || null,
+    age: form.age ? Number(form.age) : null,
+    medical_history: !!form.medical_history,
+    medical_history_details: form.medical_history ? form.medical_history_details.trim() : null,
+    medication: !!form.medication,
+    medication_details: form.medication ? form.medication_details.trim() : null,
     locale: localeStore.current
   }
   console.log('[symptom-debug] → POST /api/v1/symptom_checker', payload)
@@ -245,6 +293,188 @@ async function submit() {
           >
             {{ errors.symptomChoice }}
           </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              {{ t('symptom_form.gender_label') }}
+            </label>
+            <select
+              v-model="form.gender"
+              data-testid="gender-select"
+              class="w-full px-4 py-3 rounded-lg
+                     bg-white dark:bg-slate-900/60
+                     border border-slate-300 dark:border-slate-600
+                     text-slate-800 dark:text-slate-100
+                     focus:ring-2 focus:ring-brand focus:outline-none"
+            >
+              <option value="">{{ t('symptom_form.gender_placeholder') }}</option>
+              <option v-for="g in GENDER_OPTIONS" :key="g" :value="g">
+                {{ t(`symptom_form.gender_${g}`) }}
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              {{ t('symptom_form.age_label') }}
+            </label>
+            <input
+              v-model.number="form.age"
+              type="number"
+              min="1"
+              max="149"
+              data-testid="age-input"
+              :placeholder="t('symptom_form.age_placeholder')"
+              :aria-invalid="!!errors.age"
+              :class="[
+                'w-full px-4 py-3 rounded-lg',
+                'bg-white dark:bg-slate-900/60',
+                'text-slate-800 dark:text-slate-100',
+                'placeholder:text-slate-400 dark:placeholder:text-slate-500',
+                'focus:ring-2 focus:ring-brand focus:outline-none',
+                errors.age
+                  ? 'border-2 border-red-400 dark:border-red-500/70'
+                  : 'border border-slate-300 dark:border-slate-600'
+              ]"
+            />
+            <p
+              v-if="errors.age"
+              data-testid="error-age"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              {{ errors.age }}
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div
+            class="rounded-xl p-3 sm:p-4
+                   bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm
+                   border border-white/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-white/5"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <label
+                for="medical-history-toggle"
+                class="text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                {{ t('symptom_form.medical_history_label') }}
+              </label>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  id="medical-history-toggle"
+                  v-model="form.medical_history"
+                  type="checkbox"
+                  data-testid="medical-history-toggle"
+                  class="sr-only peer"
+                />
+                <span
+                  class="w-11 h-6 bg-slate-300 dark:bg-slate-600 rounded-full
+                         peer-checked:bg-brand transition
+                         after:content-[''] after:absolute after:top-0.5 after:start-0.5
+                         after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all
+                         peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5"
+                ></span>
+                <span class="ms-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                  {{ form.medical_history ? t('symptom_form.medical_history_yes') : t('symptom_form.medical_history_no') }}
+                </span>
+              </label>
+            </div>
+            <div v-if="form.medical_history" data-testid="medical-history-details-wrap" class="mt-3">
+              <input
+                v-model="form.medical_history_details"
+                type="text"
+                data-testid="medical-history-details-input"
+                :placeholder="t('symptom_form.medical_history_details_placeholder')"
+                :aria-label="t('symptom_form.medical_history_details_label')"
+                aria-required="true"
+                :aria-invalid="!!errors.medical_history_details"
+                :class="[
+                  'w-full px-4 py-3 rounded-lg',
+                  'bg-white dark:bg-slate-900/60',
+                  'text-slate-800 dark:text-slate-100',
+                  'placeholder:text-slate-400 dark:placeholder:text-slate-500',
+                  'focus:ring-2 focus:ring-brand focus:outline-none',
+                  errors.medical_history_details
+                    ? 'border-2 border-red-400 dark:border-red-500/70'
+                    : 'border border-slate-300 dark:border-slate-600'
+                ]"
+              />
+              <p
+                v-if="errors.medical_history_details"
+                data-testid="error-medical-history-details"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ errors.medical_history_details }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            class="rounded-xl p-3 sm:p-4
+                   bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm
+                   border border-white/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-white/5"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <label
+                for="medication-toggle"
+                class="text-sm font-medium text-slate-700 dark:text-slate-300"
+              >
+                {{ t('symptom_form.medication_label') }}
+              </label>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  id="medication-toggle"
+                  v-model="form.medication"
+                  type="checkbox"
+                  data-testid="medication-toggle"
+                  class="sr-only peer"
+                />
+                <span
+                  class="w-11 h-6 bg-slate-300 dark:bg-slate-600 rounded-full
+                         peer-checked:bg-brand transition
+                         after:content-[''] after:absolute after:top-0.5 after:start-0.5
+                         after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all
+                         peer-checked:after:translate-x-5 rtl:peer-checked:after:-translate-x-5"
+                ></span>
+                <span class="ms-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                  {{ form.medication ? t('symptom_form.medication_yes') : t('symptom_form.medication_no') }}
+                </span>
+              </label>
+            </div>
+            <div v-if="form.medication" data-testid="medication-details-wrap" class="mt-3">
+              <input
+                v-model="form.medication_details"
+                type="text"
+                data-testid="medication-details-input"
+                :placeholder="t('symptom_form.medication_details_placeholder')"
+                :aria-label="t('symptom_form.medication_details_label')"
+                aria-required="true"
+                :aria-invalid="!!errors.medication_details"
+                :class="[
+                  'w-full px-4 py-3 rounded-lg',
+                  'bg-white dark:bg-slate-900/60',
+                  'text-slate-800 dark:text-slate-100',
+                  'placeholder:text-slate-400 dark:placeholder:text-slate-500',
+                  'focus:ring-2 focus:ring-brand focus:outline-none',
+                  errors.medication_details
+                    ? 'border-2 border-red-400 dark:border-red-500/70'
+                    : 'border border-slate-300 dark:border-slate-600'
+                ]"
+              />
+              <p
+                v-if="errors.medication_details"
+                data-testid="error-medication-details"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ errors.medication_details }}
+              </p>
+            </div>
+          </div>
         </div>
 
         <div>

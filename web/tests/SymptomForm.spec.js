@@ -413,6 +413,202 @@ describe('SymptomForm — first aid section', () => {
   })
 })
 
+describe('SymptomForm — demographic fields (gender + age)', () => {
+  it('renders a gender <select> with male / female / other options', async () => {
+    const wrapper = await mountForm()
+    const select = wrapper.find('[data-testid="gender-select"]')
+    expect(select.exists()).toBe(true)
+    expect(select.element.tagName).toBe('SELECT')
+
+    const values = select.findAll('option').map(o => o.attributes('value'))
+    expect(values).toContain('male')
+    expect(values).toContain('female')
+    expect(values).toContain('other')
+  })
+
+  it('renders a numeric age input', async () => {
+    const wrapper = await mountForm()
+    const age = wrapper.find('[data-testid="age-input"]')
+    expect(age.exists()).toBe(true)
+    expect(age.attributes('type')).toBe('number')
+  })
+
+  it('does not block submission when gender and age are blank (they are optional)', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('form').trigger('submit')
+
+    expect(analyzeSpy).toHaveBeenCalledTimes(1)
+    const payload = analyzeSpy.mock.calls[0][0]
+    expect(payload.gender).toBeNull()
+    expect(payload.age).toBeNull()
+  })
+
+  it('forwards gender and age in the submission payload when provided', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="gender-select"]').setValue('female')
+    await wrapper.find('[data-testid="age-input"]').setValue(34)
+    await wrapper.find('form').trigger('submit')
+
+    const payload = analyzeSpy.mock.calls[0][0]
+    expect(payload.gender).toBe('female')
+    expect(payload.age).toBe(34)
+  })
+})
+
+describe('SymptomForm — medical history toggle', () => {
+  it('hides the details input by default (when toggle is off)', async () => {
+    const wrapper = await mountForm()
+    expect(wrapper.find('[data-testid="medical-history-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="medical-history-details-wrap"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="medical-history-details-input"]').exists()).toBe(false)
+  })
+
+  it('reveals the details input the moment the toggle flips on', async () => {
+    const wrapper = await mountForm()
+    await wrapper.find('[data-testid="medical-history-toggle"]').setValue(true)
+    expect(wrapper.find('[data-testid="medical-history-details-wrap"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="medical-history-details-input"]').exists()).toBe(true)
+  })
+
+  it('hides the details input again when the toggle flips off', async () => {
+    const wrapper = await mountForm()
+    const toggle = wrapper.find('[data-testid="medical-history-toggle"]')
+    await toggle.setValue(true)
+    expect(wrapper.find('[data-testid="medical-history-details-input"]').exists()).toBe(true)
+
+    await toggle.setValue(false)
+    expect(wrapper.find('[data-testid="medical-history-details-input"]').exists()).toBe(false)
+  })
+
+  it('blocks submission and surfaces an error when the toggle is on but details are blank', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="medical-history-toggle"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+
+    expect(analyzeSpy).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="error-medical-history-details"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="error-medical-history-details"]').text())
+      .toContain(faMessages.symptom_form.validation.medical_history_details_required)
+  })
+
+  it('clears the error once the user fills the details field', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="medical-history-toggle"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.find('[data-testid="error-medical-history-details"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="medical-history-details-input"]').setValue('Diabetes')
+    expect(wrapper.find('[data-testid="error-medical-history-details"]').exists()).toBe(false)
+  })
+
+  it('forwards medical_history flag and details in the payload', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="medical-history-toggle"]').setValue(true)
+    await wrapper.find('[data-testid="medical-history-details-input"]').setValue('Diabetes')
+    await wrapper.find('form').trigger('submit')
+
+    const payload = analyzeSpy.mock.calls[0][0]
+    expect(payload.medical_history).toBe(true)
+    expect(payload.medical_history_details).toBe('Diabetes')
+  })
+
+  it('sends medical_history=false and a null details field when toggle is off', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('form').trigger('submit')
+
+    const payload = analyzeSpy.mock.calls[0][0]
+    expect(payload.medical_history).toBe(false)
+    expect(payload.medical_history_details).toBeNull()
+  })
+})
+
+describe('SymptomForm — current medication toggle', () => {
+  it('hides the medication details input by default', async () => {
+    const wrapper = await mountForm()
+    expect(wrapper.find('[data-testid="medication-toggle"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="medication-details-input"]').exists()).toBe(false)
+  })
+
+  it('reveals the details input when the toggle is on, hides it when off', async () => {
+    const wrapper = await mountForm()
+    const toggle = wrapper.find('[data-testid="medication-toggle"]')
+
+    await toggle.setValue(true)
+    expect(wrapper.find('[data-testid="medication-details-input"]').exists()).toBe(true)
+
+    await toggle.setValue(false)
+    expect(wrapper.find('[data-testid="medication-details-input"]').exists()).toBe(false)
+  })
+
+  it('blocks submission and surfaces an error when toggle is on but details are blank', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="medication-toggle"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+
+    expect(analyzeSpy).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="error-medication-details"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="error-medication-details"]').text())
+      .toContain(faMessages.symptom_form.validation.medication_details_required)
+  })
+
+  it('clears the error once the user enters a medication name', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="medication-toggle"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.find('[data-testid="error-medication-details"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="medication-details-input"]').setValue('Aspirin')
+    expect(wrapper.find('[data-testid="error-medication-details"]').exists()).toBe(false)
+  })
+
+  it('forwards medication flag and details in the payload', async () => {
+    const wrapper = await mountForm()
+    const store = useSymptomStore()
+    const analyzeSpy = vi.spyOn(store, 'analyze').mockResolvedValue()
+
+    await fillRequired(wrapper)
+    await wrapper.find('[data-testid="medication-toggle"]').setValue(true)
+    await wrapper.find('[data-testid="medication-details-input"]').setValue('Aspirin')
+    await wrapper.find('form').trigger('submit')
+
+    const payload = analyzeSpy.mock.calls[0][0]
+    expect(payload.medication).toBe(true)
+    expect(payload.medication_details).toBe('Aspirin')
+  })
+})
+
 describe('SymptomForm — stuck-loading and error recovery', () => {
   it('shows the analyzing state while analyze() is in flight (no result, no error)', async () => {
     const wrapper = await mountForm()

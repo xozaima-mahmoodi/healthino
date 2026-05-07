@@ -9,22 +9,19 @@ export const useSymptomStore = defineStore('symptom', {
   }),
   actions: {
     async analyze(payload) {
-      console.log('[symptom-debug] analyze() start', payload)
       this.submitting = true
       this.error = null
       try {
         const { data } = await api.post('/api/v1/symptom_checker', payload)
-        console.log('[symptom-debug] analyze() response', data)
         this.result = data
         return true
       } catch (e) {
         const status = e?.response?.status
         const body = e?.response?.data
-        console.warn('[symptom-debug] analyze() failed', { status, body, message: e?.message })
+        console.warn('[symptom] analyze failed', { status, message: e?.message })
         this.error = body || { message: e?.message || 'request_failed' }
         return false
       } finally {
-        console.log('[symptom-debug] analyze() finally — clearing submitting')
         this.submitting = false
       }
     },

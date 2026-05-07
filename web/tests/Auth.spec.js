@@ -6,7 +6,9 @@ vi.mock('../src/api/client', () => ({
   api: {
     get: vi.fn(() => new Promise(() => {})),
     post: vi.fn(() => new Promise(() => {}))
-  }
+  },
+  cancelPendingRequests: vi.fn(),
+  pendingRequestCount: vi.fn(() => 0)
 }))
 
 import Login from '../src/views/Login.vue'
@@ -95,6 +97,26 @@ describe('Login.vue', () => {
     const banner = wrapper.find('[data-testid="login-error"]')
     expect(banner.exists()).toBe(true)
     expect(banner.text()).toContain(faMessages.auth.invalid_credentials)
+  })
+
+  it('shows a hard-reset button inside the error banner that wipes session + storage', async () => {
+    const { wrapper } = await mountLogin()
+    const auth = useAuthStore()
+    auth.setSession({ token: 'tok-zombie', user: { id: 5, name: 'Z', email: 'z@x.io' } })
+    auth.error = { errors: { base: ['invalid_credentials'] } }
+    await nextTick()
+
+    const btn = wrapper.find('[data-testid="login-hard-reset"]')
+    expect(btn.exists()).toBe(true)
+
+    await btn.trigger('click')
+    await nextTick()
+
+    expect(auth.isAuthenticated).toBe(false)
+    expect(auth.token).toBeNull()
+    expect(localStorage.getItem('healthino:auth_token')).toBeNull()
+    expect(wrapper.find('[data-testid="login-email"]').element.value).toBe('')
+    expect(wrapper.find('[data-testid="login-password"]').element.value).toBe('')
   })
 
   it('always redirects to "/" after a successful login, ignoring any ?next= hint', async () => {

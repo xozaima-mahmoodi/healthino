@@ -70,6 +70,45 @@ describe('toast store', () => {
     expect(toast.success('   ')).toBeNull()
     expect(toast.items).toHaveLength(0)
   })
+
+  it('caps simultaneous error toasts at 2 (oldest is dropped, never stacks 3+)', async () => {
+    await makeTestPlugins({ path: '/' })
+    const toast = useToastStore()
+
+    toast.error('first')
+    toast.error('second')
+    toast.error('third')
+    toast.error('fourth')
+
+    const errors = toast.items.filter(i => i.type === 'error')
+    expect(errors).toHaveLength(2)
+    expect(errors.map(e => e.message)).toEqual(['third', 'fourth'])
+  })
+
+  it('does not enqueue an identical error message that is already on screen', async () => {
+    await makeTestPlugins({ path: '/' })
+    const toast = useToastStore()
+
+    const first = toast.error('Network Error')
+    const dup = toast.error('Network Error')
+
+    expect(first).toBeGreaterThan(0)
+    expect(dup).toBeNull()
+    expect(toast.items.filter(i => i.message === 'Network Error')).toHaveLength(1)
+  })
+
+  it('still allows up to 2 distinct error toasts to coexist with a success toast', async () => {
+    await makeTestPlugins({ path: '/' })
+    const toast = useToastStore()
+
+    toast.success('saved')
+    toast.error('one')
+    toast.error('two')
+
+    expect(toast.items).toHaveLength(3)
+    expect(toast.items.filter(i => i.type === 'error')).toHaveLength(2)
+    expect(toast.items.filter(i => i.type === 'success')).toHaveLength(1)
+  })
 })
 
 describe('ToastContainer', () => {

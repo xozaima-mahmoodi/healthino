@@ -204,18 +204,8 @@ const apiErrorMessages = computed(() => {
 })
 
 async function submit() {
-  console.log('[symptom-debug] click → submit()', {
-    submitting: symptomStore.submitting,
-    form: { ...form, attachments: form.attachments.length }
-  })
-  if (symptomStore.submitting) {
-    console.log('[symptom-debug] submit() guarded — already submitting')
-    return
-  }
-  if (!validate()) {
-    console.log('[symptom-debug] submit() blocked by validation', { ...errors })
-    return
-  }
+  if (symptomStore.submitting) return
+  if (!validate()) return
   const symptoms = [t(`symptoms.${form.symptomChoice}`)]
   const extra = form.additionalInfo.trim()
   if (extra) symptoms.push(extra)
@@ -232,13 +222,7 @@ async function submit() {
     medication_details: form.medication ? form.medication_details.trim() : null,
     locale: localeStore.current
   }
-  console.log('[symptom-debug] → POST /api/v1/symptom_checker', payload)
   const ok = await symptomStore.analyze(payload)
-  console.log('[symptom-debug] ← awaited analyze()', {
-    result: !!symptomStore.result,
-    error: !!symptomStore.error,
-    submitting: symptomStore.submitting
-  })
   if (ok) {
     toast.success(t('toast.analysis_success'))
   } else if (symptomStore.error) {

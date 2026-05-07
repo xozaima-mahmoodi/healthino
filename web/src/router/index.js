@@ -21,16 +21,26 @@ export const routes = [
 
 export function registerAuthGuard(routerInstance) {
   routerInstance.beforeEach((to) => {
-    if (!to.meta?.requiresAuth) return true
-    const auth = useAuthStore()
-    if (auth.isAuthenticated) return true
-    return { path: '/login' }
+    try {
+      if (!to.meta?.requiresAuth) return true
+      const auth = useAuthStore()
+      if (auth.isAuthenticated) return true
+      return { path: '/login' }
+    } catch (e) {
+      console.warn('[router] guard failed, falling back to /login', e?.message || e)
+      try { useAuthStore().hardReset() } catch { /* pinia not ready */ }
+      return { path: '/login' }
+    }
   })
 }
 
 export function createAppRouter(history = createWebHistory()) {
   const r = createRouter({ history, routes })
   registerAuthGuard(r)
+  r.onError((err) => {
+    console.warn('[router] navigation error', err?.message || err)
+    try { useAuthStore().hardReset() } catch { /* pinia not ready */ }
+  })
   return r
 }
 

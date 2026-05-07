@@ -34,14 +34,26 @@ const canSubmit = computed(() =>
 )
 
 async function submit() {
-  if (!canSubmit.value) return
+  if (!canSubmit.value || auth.submitting) return
   const ok = await auth.login({ email: cleanEmail.value, password: form.password })
   if (ok) {
     toast.success(t('toast.login_success'))
     router.push('/')
   } else {
-    toast.error(t('toast.login_error'))
+    const e = auth.error || {}
+    const detail = (e.errors && Object.values(e.errors).flat().filter(Boolean).join(', '))
+      || e.message
+      || (e.status ? `HTTP ${e.status}` : '')
+      || 'unknown'
+    toast.error(`${t('toast.login_error')} — ${detail}`)
   }
+}
+
+function hardReset() {
+  auth.hardReset()
+  form.email = ''
+  form.password = ''
+  toast.success(t('toast.hard_reset_success'))
 }
 </script>
 
@@ -120,6 +132,15 @@ async function submit() {
                   {{ msg === 'invalid_credentials' ? t('auth.invalid_credentials') : msg }}
                 </li>
               </ul>
+              <button
+                type="button"
+                data-testid="login-hard-reset"
+                @click="hardReset"
+                class="mt-2 inline-flex items-center text-xs font-semibold underline
+                       text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-100"
+              >
+                {{ t('auth.hard_reset') }}
+              </button>
             </div>
 
             <button

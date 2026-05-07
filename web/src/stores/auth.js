@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia'
-import { api } from '../api/client'
+import { api, cancelPendingRequests } from '../api/client'
 import { sanitizeEmail } from '../utils/text'
+import { useToastStore } from './toast'
 
 const TOKEN_KEY = 'healthino:auth_token'
 const USER_KEY  = 'healthino:auth_user'
+const STORAGE_PREFIX = 'healthino:'
 
 function readJson(key) {
   try {
@@ -22,16 +24,55 @@ function writeJson(key, value) {
 }
 
 function readToken() {
-  try { return localStorage.getItem(TOKEN_KEY) || null } catch { return null }
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY)
+    if (!raw || typeof raw !== 'string') return null
+    return /^[A-Za-z0-9._\-]{8,256}$/.test(raw) ? raw : null
+  } catch {
+    return null
+  }
+}
+
+function isValidUser(u) {
+  if (!u || typeof u !== 'object') return false
+  if (typeof u.id !== 'number' && typeof u.id !== 'string') return false
+  if (u.email != null && typeof u.email !== 'string') return false
+  if (u.name != null && typeof u.name !== 'string') return false
+  return true
+}
+
+function readSafeUser() {
+  const raw = readJson(USER_KEY)
+  return isValidUser(raw) ? raw : null
+}
+
+function purgeAuthStorage() {
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
+  } catch { /* ignore */ }
+}
+
+function bootState() {
+  const token = readToken()
+  const user  = readSafeUser()
+  if ((token && !user) || (!token && user)) {
+    purgeAuthStorage()
+    return { token: null, user: null }
+  }
+  return { token, user }
 }
 
 export const useAuthStore = defineStore('auth', {
-  state: () => ({
-    token: readToken(),
-    user: readJson(USER_KEY),
-    submitting: false,
-    error: null
-  }),
+  state: () => {
+    const boot = bootState()
+    return {
+      token: boot.token,
+      user: boot.user,
+      submitting: false,
+      error: null
+    }
+  },
   getters: {
     isAuthenticated: (s) => !!s.token,
     displayName: (s) => s.user?.display_name || s.user?.name || s.user?.email || ''
@@ -123,6 +164,22 @@ export const useAuthStore = defineStore('auth', {
     },
     logout() {
       this.clear()
+    },
+    hardReset() {
+      cancelPendingRequests('hard_reset')
+      try {
+        const keys = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i)
+          if (k && k.startsWith(STORAGE_PREFIX)) keys.push(k)
+        }
+        for (const k of keys) localStorage.removeItem(k)
+      } catch { /* ignore */ }
+      this.token = null
+      this.user = null
+      this.error = null
+      this.submitting = false
+      try { useToastStore().clear() } catch { /* pinia not ready */ }
     }
   }
 })

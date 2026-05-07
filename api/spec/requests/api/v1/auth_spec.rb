@@ -101,6 +101,26 @@ RSpec.describe "Auth API" do
            headers: json_headers
       expect(response).to have_http_status(:unauthorized)
     end
+
+    it "returns a single, clear error message on failure (no extra noise the client might stack)" do
+      post "/api/v1/auth/login",
+           params: { email: "ali@example.com", password: "wrong" }.to_json,
+           headers: json_headers
+
+      body = JSON.parse(response.body)
+      expect(body.keys).to contain_exactly("errors")
+      expect(body["errors"].keys).to eq(["base"])
+      expect(body["errors"]["base"]).to eq(["invalid_credentials"])
+    end
+
+    it "returns the same one-shot 401 shape for an unknown email (so the client renders one toast, not many)" do
+      post "/api/v1/auth/login",
+           params: { email: "ghost@example.com", password: "anything" }.to_json,
+           headers: json_headers
+
+      body = JSON.parse(response.body)
+      expect(body["errors"]["base"]).to eq(["invalid_credentials"])
+    end
   end
 
   describe "GET /api/v1/me" do

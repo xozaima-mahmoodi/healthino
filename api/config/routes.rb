@@ -3,6 +3,7 @@ Rails.application.routes.draw do
 
   namespace :api do
     namespace :v1 do
+      get  "ping", to: "health#ping"
       post "symptom_checker", to: "symptom_checker#create"
       post "auth/register",   to: "auth#register"
       post "auth/login",      to: "auth#login"

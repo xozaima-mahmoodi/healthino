@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
 const DEFAULT_DURATION = 3000
+const MAX_ERROR_TOASTS = 2
 let nextId = 1
 
 export const useToastStore = defineStore('toast', {
@@ -11,6 +12,19 @@ export const useToastStore = defineStore('toast', {
     push(message, { type = 'info', duration = DEFAULT_DURATION } = {}) {
       const text = typeof message === 'string' ? message.trim() : ''
       if (!text) return null
+
+      if (this.items.some(i => i.type === type && i.message === text)) {
+        return null
+      }
+
+      if (type === 'error') {
+        const errorItems = this.items.filter(i => i.type === 'error')
+        while (errorItems.length >= MAX_ERROR_TOASTS) {
+          const oldest = errorItems.shift()
+          if (oldest) this.dismiss(oldest.id)
+        }
+      }
+
       const id = nextId++
       const item = { id, type, message: text }
       this.items.push(item)

@@ -33,7 +33,10 @@
     "analysis_error": "Symptom analysis failed. Please try again.",
     "profile_update_error": "Failed to save profile changes.",
     "password_update_success": "Password updated successfully.",
-    "idle_logout": "You were signed out due to inactivity."
+    "idle_logout": "You were signed out due to inactivity.",
+    "hard_reset_success": "App state cleared. Please try again.",
+    "server_unreachable": "Cannot reach the server. Please check your connection and try again.",
+    "unexpected_error": "An unexpected error occurred. Please try again."
   },
   "profile": {
     "title": "My profile",
@@ -80,7 +83,8 @@
     "profile_my": "My profile",
     "edit_account": "Edit account",
     "account_menu": "Account menu",
-    "invalid_credentials": "Invalid email or password."
+    "invalid_credentials": "Invalid email or password.",
+    "hard_reset": "Hard reset and start over"
   },
   "doctor": {
     "title": "Doctor dashboard",

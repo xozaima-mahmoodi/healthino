@@ -414,7 +414,7 @@ describe('SymptomForm — first aid section', () => {
 })
 
 describe('SymptomForm — demographic fields (gender + age)', () => {
-  it('renders a gender <select> with male / female / other options', async () => {
+  it('renders a gender <select> with only male and female options', async () => {
     const wrapper = await mountForm()
     const select = wrapper.find('[data-testid="gender-select"]')
     expect(select.exists()).toBe(true)
@@ -423,7 +423,7 @@ describe('SymptomForm — demographic fields (gender + age)', () => {
     const values = select.findAll('option').map(o => o.attributes('value'))
     expect(values).toContain('male')
     expect(values).toContain('female')
-    expect(values).toContain('other')
+    expect(values).not.toContain('other')
   })
 
   it('renders a numeric age input', async () => {

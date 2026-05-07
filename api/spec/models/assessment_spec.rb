@@ -22,13 +22,14 @@ RSpec.describe Assessment do
         expect(build(:assessment, gender: nil)).to be_valid
       end
 
-      it "accepts male / female / other" do
-        %w[male female other].each do |g|
+      it "accepts only male and female" do
+        %w[male female].each do |g|
           expect(build(:assessment, gender: g)).to be_valid
         end
       end
 
-      it "rejects unrecognised values" do
+      it "rejects unrecognised values (including 'other')" do
+        expect(build(:assessment, gender: "other")).to be_invalid
         expect(build(:assessment, gender: "robot")).to be_invalid
       end
     end

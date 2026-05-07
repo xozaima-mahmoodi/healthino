@@ -1,5 +1,5 @@
 class Assessment < ApplicationRecord
-  GENDERS = %w[male female other].freeze
+  GENDERS = %w[male female].freeze
 
   belongs_to :user
 

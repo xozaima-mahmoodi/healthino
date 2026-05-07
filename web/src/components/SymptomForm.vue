@@ -24,7 +24,7 @@ const BODY_AREAS = [
 
 const ACCEPTED_TYPES = 'image/*,application/pdf'
 
-const GENDER_OPTIONS = ['male', 'female', 'other']
+const GENDER_OPTIONS = ['male', 'female']
 
 const initialFormState = () => ({
   symptomChoice: '',

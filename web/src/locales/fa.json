@@ -36,7 +36,9 @@
     "idle_logout": "به دلیل عدم فعالیت، از حساب خود خارج شدید.",
     "hard_reset_success": "وضعیت برنامه بازنشانی شد. لطفاً دوباره تلاش کنید.",
     "server_unreachable": "ارتباط با سرور برقرار نشد. لطفاً اتصال خود را بررسی و دوباره تلاش کنید.",
-    "unexpected_error": "خطایی غیرمنتظره رخ داد. لطفاً دوباره تلاش کنید."
+    "unexpected_error": "خطایی غیرمنتظره رخ داد. لطفاً دوباره تلاش کنید.",
+    "document_analysis_success": "تحلیل مدارک با موفقیت انجام شد.",
+    "document_analysis_error": "تحلیل مدارک با خطا مواجه شد. لطفاً دوباره تلاش کنید."
   },
   "profile": {
     "title": "پروفایل من",
@@ -111,6 +113,9 @@
     "attachments_hint": "برای انتخاب فایل کلیک کنید یا فایل‌ها را اینجا رها کنید",
     "attachments_types": "تصاویر و PDF — چند فایل پشتیبانی می‌شود",
     "attachments_remove": "حذف فایل",
+    "analyze_documents": "تحلیل هوشمند مدارک",
+    "analyzing_documents": "در حال تحلیل مدارک…",
+    "document_summary_title": "خلاصه تحلیل مدارک",
     "severity_label": "شدت درد (۱ تا ۱۰)",
     "body_area_label": "ناحیه بدن",
     "body_area_placeholder": "یک ناحیه را انتخاب کنید…",

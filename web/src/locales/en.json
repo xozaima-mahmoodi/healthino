@@ -36,7 +36,9 @@
     "idle_logout": "You were signed out due to inactivity.",
     "hard_reset_success": "App state cleared. Please try again.",
     "server_unreachable": "Cannot reach the server. Please check your connection and try again.",
-    "unexpected_error": "An unexpected error occurred. Please try again."
+    "unexpected_error": "An unexpected error occurred. Please try again.",
+    "document_analysis_success": "Document analysis completed successfully.",
+    "document_analysis_error": "Document analysis failed. Please try again."
   },
   "profile": {
     "title": "My profile",
@@ -111,6 +113,9 @@
     "attachments_hint": "Click to choose files or drop them here",
     "attachments_types": "Images and PDFs — multiple files supported",
     "attachments_remove": "Remove file",
+    "analyze_documents": "Smart document analysis",
+    "analyzing_documents": "Analyzing documents…",
+    "document_summary_title": "Document analysis summary",
     "severity_label": "Pain intensity (1–10)",
     "body_area_label": "Body area",
     "body_area_placeholder": "Choose an area…",

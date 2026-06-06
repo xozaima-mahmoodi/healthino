@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useSymptomStore } from '../stores/symptom'
 import { useLocaleStore } from '../stores/locale'
 import { useToastStore } from '../stores/toast'
+import { api } from '../api/client'
 
 const { t } = useI18n()
 const symptomStore = useSymptomStore()
@@ -53,7 +54,37 @@ const initialErrorsState = () => ({
 const form = reactive(initialFormState())
 const errors = reactive(initialErrorsState())
 const isDragging = ref(false)
+const isAnalyzing = ref(false)
+const documentSummary = ref('')
 let nextAttachmentId = 0
+
+async function analyzeDocuments() {
+  if (isAnalyzing.value) return
+  const first = form.attachments[0]
+  if (!first) return
+
+  isAnalyzing.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', first.file, first.name)
+    const { data } = await api.post('/api/v1/assessments/analyze_document', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    documentSummary.value = (data && data.summary) || ''
+    if (documentSummary.value) {
+      toast.success(t('toast.document_analysis_success'))
+    } else {
+      toast.error(t('toast.document_analysis_error'))
+    }
+  } catch (e) {
+    const status = e?.response?.status
+    const body = e?.response?.data
+    console.warn('[symptom] analyze_document failed', { status, body, message: e?.message })
+    toast.error(t('toast.document_analysis_error'))
+  } finally {
+    isAnalyzing.value = false
+  }
+}
 
 function isImage(type) {
   return typeof type === 'string' && type.startsWith('image/')
@@ -85,6 +116,7 @@ function removeAttachment(id) {
   if (idx === -1) return
   const [removed] = form.attachments.splice(idx, 1)
   if (removed.previewUrl) URL.revokeObjectURL(removed.previewUrl)
+  if (!form.attachments.length) documentSummary.value = ''
 }
 
 function onDragOver(e) {
@@ -167,6 +199,8 @@ function resetForm() {
   clearErrors()
   nextAttachmentId = 0
   isDragging.value = false
+  documentSummary.value = ''
+  isAnalyzing.value = false
 }
 
 watch(() => symptomStore.result, (val) => {
@@ -522,6 +556,61 @@ async function submit() {
               @change="onFileChange"
             />
           </label>
+
+          <div
+            v-if="form.attachments.length"
+            class="mt-3 flex flex-wrap items-center gap-3"
+          >
+            <button
+              type="button"
+              :disabled="isAnalyzing"
+              data-testid="analyze-documents-button"
+              @click="analyzeDocuments"
+              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                     bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
+                     border border-white/60 dark:border-white/10
+                     ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+                     text-sm font-semibold text-brand-dark dark:text-emerald-300
+                     shadow-sm hover:bg-brand/5 dark:hover:bg-emerald-900/20
+                     transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg
+                v-if="isAnalyzing"
+                data-testid="analyze-documents-spinner"
+                class="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24" fill="none"
+              >
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-opacity="0.25"/>
+                <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              </svg>
+              <svg
+                v-else
+                class="h-4 w-4"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <path d="M9 9h6"/>
+                <path d="M9 13h4"/>
+              </svg>
+              {{ isAnalyzing ? t('symptom_form.analyzing_documents') : t('symptom_form.analyze_documents') }}
+            </button>
+          </div>
+
+          <div
+            v-if="documentSummary"
+            data-testid="document-summary"
+            class="mt-3 rounded-xl p-3 sm:p-4
+                   bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
+                   border border-white/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+                   text-sm text-slate-700 dark:text-slate-200"
+          >
+            <div class="font-semibold mb-1 text-brand-dark dark:text-emerald-300">
+              {{ t('symptom_form.document_summary_title') }}
+            </div>
+            <p class="whitespace-pre-wrap">{{ documentSummary }}</p>
+          </div>
 
           <ul
             v-if="form.attachments.length"

@@ -11,7 +11,11 @@ Rails.application.routes.draw do
       patch "user", to: "me#update"
       resources :specialties, only: %i[index show]
       resources :doctors,     only: %i[index show]
-      resources :assessments, only: %i[index]
+      resources :assessments, only: %i[index] do
+        collection do
+          post :analyze_document
+        end
+      end
     end
   end
 end

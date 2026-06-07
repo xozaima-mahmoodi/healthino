@@ -25,7 +25,7 @@ module Api
           return
         end
 
-        analysis = GeminiService.new.analyze_document(file)
+        analysis = GeminiService.new.analyze_document(file, locale: request_locale)
         render json: {
           summary: analysis["summary"],
           questions: analysis["questions"]
@@ -44,6 +44,13 @@ module Api
       end
 
       private
+
+      # Locale the document analysis should be written in. Prefers an explicit
+      # `locale` param (sent by the client), then the Accept-Language header.
+      def request_locale
+        params[:locale].presence ||
+          request.headers["Accept-Language"].to_s.split(",").first
+      end
 
       def resolve_target_user
         requested_id = params[:user_id].presence&.to_i

@@ -128,8 +128,12 @@ async function analyzeDocuments() {
   try {
     const fd = new FormData()
     fd.append('file', first.file, first.name)
+    fd.append('locale', localeStore.current)
     const { data } = await api.post('/api/v1/assessments/analyze_document', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'Accept-Language': localeStore.current
+      }
     })
     documentSummary.value = (data && data.summary) || ''
     setDocumentQuestions(data && data.questions)
@@ -602,7 +606,6 @@ async function submit() {
           </label>
 
           <div
-            data-testid="upload-zone"
             @dragover="onDragOver"
             @dragleave="onDragLeave"
             @drop="onDrop"
@@ -617,6 +620,7 @@ async function submit() {
             <label
               v-if="!form.attachments.length"
               for="symptom-attachments"
+              data-testid="upload-zone"
               class="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-10 sm:py-8 text-center min-h-[140px] cursor-pointer rounded-xl
                      hover:bg-brand/5 dark:hover:bg-emerald-900/20 transition"
             >

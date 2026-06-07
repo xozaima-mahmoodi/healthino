@@ -5,7 +5,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Vazirmatn', 'system-ui', 'sans-serif']
+        // Resolves to the per-locale font set via the --app-font CSS variable
+        // (Vazirmatn for fa/ckb, a clean Latin sans for en). See style.css.
+        sans: ['var(--app-font)', 'Vazirmatn', 'system-ui', 'sans-serif']
       },
       colors: {
         surface: '#F8FAFC',

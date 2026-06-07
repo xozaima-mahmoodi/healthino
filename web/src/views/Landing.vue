@@ -10,11 +10,11 @@ const { t } = useI18n()
   <main class="relative min-h-screen overflow-x-hidden mesh-bg flex flex-col">
     <!-- Decorative blobs -->
     <div class="pointer-events-none absolute inset-0 -z-0" aria-hidden="true">
-      <div class="absolute -top-32 -left-24 h-80 w-80 rounded-full
+      <div class="absolute -top-32 -start-24 h-80 w-80 rounded-full
                   bg-emerald-300/30 dark:bg-emerald-500/10 blur-3xl"></div>
-      <div class="absolute top-1/2 -right-32 h-[420px] w-[420px] rounded-full
+      <div class="absolute top-1/2 -end-32 h-[420px] w-[420px] rounded-full
                   bg-sky-300/25 dark:bg-sky-500/10 blur-3xl"></div>
-      <div class="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full
+      <div class="absolute -bottom-24 start-1/3 h-72 w-72 rounded-full
                   bg-indigo-300/20 dark:bg-indigo-500/10 blur-3xl"></div>
       <div class="absolute inset-0 dot-grid opacity-60"></div>
     </div>

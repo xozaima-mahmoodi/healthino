@@ -29,6 +29,12 @@
             document.documentElement.classList.add('dark');
           }
         } catch (_) { /* no-op */ }
+        try {
+          var locale = localStorage.getItem('healthino_locale') || 'fa';
+          var rtl = locale === 'fa' || locale === 'ckb';
+          document.documentElement.lang = locale;
+          document.documentElement.dir = rtl ? 'rtl' : 'ltr';
+        } catch (_) { /* no-op */ }
       })();
     </script>
     <div id="app"></div>

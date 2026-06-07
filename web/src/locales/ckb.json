@@ -35,7 +35,10 @@
     "password_update_success": "وشەی نهێنی بە سەرکەوتوویی نوێکرایەوە.",
     "idle_logout": "بەهۆی نەبوونی چالاکی، لە هەژمارەکەت چوویتە دەرەوە.",
     "document_analysis_success": "شیکاری بەڵگەنامە بە سەرکەوتوویی ئەنجامدرا.",
-    "document_analysis_error": "شیکاری بەڵگەنامە سەرکەوتوو نەبوو. تکایە دووبارە هەوڵبدە."
+    "document_analysis_error": "شیکاری بەڵگەنامە سەرکەوتوو نەبوو. تکایە دووبارە هەوڵبدە.",
+    "hard_reset_success": "دۆخی ئەپ پاککرایەوە. تکایە دووبارە هەوڵبدە.",
+    "server_unreachable": "ناتوانرێت پەیوەندی بە ڕاژەکارەوە بکرێت. تکایە پەیوەندییەکەت بپشکنە و دووبارە هەوڵبدە.",
+    "unexpected_error": "هەڵەیەکی چاوەڕواننەکراو ڕوویدا. تکایە دووبارە هەوڵبدە."
   },
   "profile": {
     "title": "پرۆفایلی من",
@@ -82,7 +85,8 @@
     "profile_my": "پرۆفایلی من",
     "edit_account": "دەستکاری زانیاری",
     "account_menu": "مێنوی هەژمار",
-    "invalid_credentials": "ئیمەیڵ یان وشەی نهێنی هەڵەیە."
+    "invalid_credentials": "ئیمەیڵ یان وشەی نهێنی هەڵەیە.",
+    "hard_reset": "ڕیسێتی تەواو و دەستپێکردنەوە"
   },
   "doctor": {
     "title": "داشبۆردی پزیشک",
@@ -121,6 +125,22 @@
     "questions_modal_title": "پرسیارە تەواوکەرەکانی پزیشکی زیرەک",
     "questions_modal_confirm": "پشتڕاستکردنەوە و تۆمارکردنی وەڵامەکان",
     "answers_saved_badge": "وەڵامی پرسیارە تەواوکەرەکان تۆمارکرا",
+    "gender_label": "ڕەگەز",
+    "gender_placeholder": "ڕەگەز هەڵبژێرە…",
+    "gender_male": "نێر",
+    "gender_female": "مێ",
+    "age_label": "تەمەن",
+    "age_placeholder": "تەمەنت بنووسە",
+    "medical_history_label": "مێژووی نەخۆشی",
+    "medical_history_yes": "بەڵێ",
+    "medical_history_no": "نەخێر",
+    "medical_history_details_label": "تکایە ناوی نەخۆشی دیاری بکە",
+    "medical_history_details_placeholder": "بۆ نموونە شەکرە، فشاری خوێن…",
+    "medication_label": "بەکارهێنانی دەرمان",
+    "medication_yes": "بەڵێ",
+    "medication_no": "نەخێر",
+    "medication_details_label": "ناوی دەرمان بنووسە",
+    "medication_details_placeholder": "بۆ نموونە مێتفۆرمین، ئاسپرین…",
     "severity_label": "ئاستی ئێش (١ تا ١٠)",
     "body_area_label": "ناوچەی لەش",
     "body_area_placeholder": "ناوچەیەک هەڵبژێرە…",
@@ -139,7 +159,10 @@
     "validation": {
       "symptom_required": "تکایە نیشانەی سەرەکی هەڵبژێرە.",
       "body_area_required": "تکایە ناوچەی لەش هەڵبژێرە.",
-      "duration_required": "تکایە ماوەی نیشانەکان بە کاتژمێر بنووسە."
+      "duration_required": "تکایە ماوەی نیشانەکان بە کاتژمێر بنووسە.",
+      "age_invalid": "تکایە تەمەنێکی دروست بنووسە.",
+      "medical_history_details_required": "تکایە ناوی نەخۆشییەکە دیاری بکە.",
+      "medication_details_required": "تکایە ناوی دەرمانەکە بنووسە."
     },
     "first_aid": {
       "title": "یارمەتی یەکەم و چاودێری خێرا",

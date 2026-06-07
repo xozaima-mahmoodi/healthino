@@ -11,8 +11,10 @@ const route = useRoute()
 const historyStore = useHistoryStore()
 const authStore = useAuthStore()
 
+const DATE_LOCALE_TAGS = { fa: 'fa-IR', ckb: 'ckb-Arab', en: 'en-US' }
+
 const dateFormatter = computed(() => {
-  const tag = locale.value === 'ckb' ? 'ckb-Arab' : 'fa-IR'
+  const tag = DATE_LOCALE_TAGS[locale.value] || 'fa-IR'
   try {
     return new Intl.DateTimeFormat(tag, {
       year: 'numeric', month: 'long', day: 'numeric',

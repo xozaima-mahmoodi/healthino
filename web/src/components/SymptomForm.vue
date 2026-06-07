@@ -56,7 +56,16 @@ const errors = reactive(initialErrorsState())
 const isDragging = ref(false)
 const isAnalyzing = ref(false)
 const documentSummary = ref('')
+const documentQuestions = ref([])
+const userAnswers = reactive({})
 let nextAttachmentId = 0
+
+function setDocumentQuestions(questions) {
+  const list = Array.isArray(questions) ? questions.filter(q => typeof q === 'string' && q.trim()) : []
+  documentQuestions.value = list
+  for (const key of Object.keys(userAnswers)) delete userAnswers[key]
+  list.forEach((_, i) => { userAnswers[i] = '' })
+}
 
 async function analyzeDocuments() {
   if (isAnalyzing.value) return
@@ -71,7 +80,8 @@ async function analyzeDocuments() {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     documentSummary.value = (data && data.summary) || ''
-    if (documentSummary.value) {
+    setDocumentQuestions(data && data.questions)
+    if (documentSummary.value || documentQuestions.value.length) {
       toast.success(t('toast.document_analysis_success'))
     } else {
       toast.error(t('toast.document_analysis_error'))
@@ -116,7 +126,10 @@ function removeAttachment(id) {
   if (idx === -1) return
   const [removed] = form.attachments.splice(idx, 1)
   if (removed.previewUrl) URL.revokeObjectURL(removed.previewUrl)
-  if (!form.attachments.length) documentSummary.value = ''
+  if (!form.attachments.length) {
+    documentSummary.value = ''
+    setDocumentQuestions([])
+  }
 }
 
 function onDragOver(e) {
@@ -200,6 +213,7 @@ function resetForm() {
   nextAttachmentId = 0
   isDragging.value = false
   documentSummary.value = ''
+  setDocumentQuestions([])
   isAnalyzing.value = false
 }
 
@@ -612,6 +626,53 @@ async function submit() {
             <p class="whitespace-pre-wrap">{{ documentSummary }}</p>
           </div>
 
+          <Transition name="questions-slide">
+            <div
+              v-if="documentQuestions.length"
+              data-testid="document-questions"
+              class="mt-3 rounded-xl p-3 sm:p-4 space-y-4
+                     bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
+                     border border-white/60 dark:border-white/10
+                     ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+                     text-sm text-slate-700 dark:text-slate-200"
+            >
+              <div>
+                <div class="font-semibold text-brand-dark dark:text-emerald-300">
+                  {{ t('symptom_form.document_questions_title') }}
+                </div>
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  {{ t('symptom_form.document_questions_hint') }}
+                </p>
+              </div>
+
+              <div
+                v-for="(question, i) in documentQuestions"
+                :key="i"
+                data-testid="document-question-item"
+              >
+                <label
+                  :for="`document-question-${i}`"
+                  class="block font-medium text-slate-700 dark:text-slate-300 mb-1"
+                >
+                  {{ question }}
+                </label>
+                <input
+                  :id="`document-question-${i}`"
+                  v-model="userAnswers[i]"
+                  type="text"
+                  data-testid="document-question-answer"
+                  :placeholder="t('symptom_form.document_questions_answer_placeholder')"
+                  class="w-full px-4 py-3 rounded-lg
+                         bg-white dark:bg-slate-900/60
+                         border border-slate-300 dark:border-slate-600
+                         text-slate-800 dark:text-slate-100
+                         placeholder:text-slate-400 dark:placeholder:text-slate-500
+                         focus:ring-2 focus:ring-brand focus:outline-none"
+                />
+              </div>
+            </div>
+          </Transition>
+
           <ul
             v-if="form.attachments.length"
             data-testid="attachments-preview"
@@ -908,5 +969,15 @@ async function submit() {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.questions-slide-enter-active,
+.questions-slide-leave-active {
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+.questions-slide-enter-from,
+.questions-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

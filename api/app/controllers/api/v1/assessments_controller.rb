@@ -25,12 +25,16 @@ module Api
           return
         end
 
-        summary = GeminiService.new.analyze_document(file)
-        render json: { summary: summary }
+        analysis = GeminiService.new.analyze_document(file)
+        render json: {
+          summary: analysis["summary"],
+          questions: analysis["questions"]
+        }
       rescue GeminiService::ConfigurationError => e
         Rails.logger.error("[GeminiService] #{e.message}")
         render json: { error: "service_unconfigured" }, status: :service_unavailable
       rescue ArgumentError => e
+        Rails.logger.warn("[GeminiService] ArgumentError: #{e.message}")
         render json: { error: e.message }, status: :unprocessable_content
       rescue StandardError => e
         Rails.logger.error("[GeminiService] #{e.class}: #{e.message}")

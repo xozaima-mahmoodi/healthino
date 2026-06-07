@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, computed, onBeforeUnmount, watch } from 'vue'
+import { reactive, ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSymptomStore } from '../stores/symptom'
 import { useLocaleStore } from '../stores/locale'
@@ -58,14 +58,66 @@ const isAnalyzing = ref(false)
 const documentSummary = ref('')
 const documentQuestions = ref([])
 const userAnswers = reactive({})
+const showQuestionsModal = ref(false)
+const answersSubmitted = ref(false)
+const previewAttachment = ref(null)
+const previewSrc = ref('')
+let previewTempUrl = null
 let nextAttachmentId = 0
+
+const isModalOpen = computed(() => showQuestionsModal.value || !!previewAttachment.value)
 
 function setDocumentQuestions(questions) {
   const list = Array.isArray(questions) ? questions.filter(q => typeof q === 'string' && q.trim()) : []
   documentQuestions.value = list
   for (const key of Object.keys(userAnswers)) delete userAnswers[key]
   list.forEach((_, i) => { userAnswers[i] = '' })
+  answersSubmitted.value = false
 }
+
+function openQuestionsModal() {
+  if (documentQuestions.value.length) showQuestionsModal.value = true
+}
+function closeQuestionsModal() {
+  showQuestionsModal.value = false
+}
+function confirmAnswers() {
+  answersSubmitted.value = true
+  showQuestionsModal.value = false
+}
+
+function openPreview(att) {
+  if (!att) return
+  if (att.previewUrl) {
+    previewSrc.value = att.previewUrl
+  } else {
+    previewTempUrl = URL.createObjectURL(att.file)
+    previewSrc.value = previewTempUrl
+  }
+  previewAttachment.value = att
+}
+function closePreview() {
+  previewAttachment.value = null
+  previewSrc.value = ''
+  if (previewTempUrl) {
+    URL.revokeObjectURL(previewTempUrl)
+    previewTempUrl = null
+  }
+}
+
+function onKeydown(e) {
+  if (e.key !== 'Escape') return
+  if (previewAttachment.value) closePreview()
+  else if (showQuestionsModal.value) closeQuestionsModal()
+}
+
+watch(isModalOpen, (open) => {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = open ? 'hidden' : ''
+  }
+})
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
 
 async function analyzeDocuments() {
   if (isAnalyzing.value) return
@@ -83,6 +135,7 @@ async function analyzeDocuments() {
     setDocumentQuestions(data && data.questions)
     if (documentSummary.value || documentQuestions.value.length) {
       toast.success(t('toast.document_analysis_success'))
+      openQuestionsModal()
     } else {
       toast.error(t('toast.document_analysis_error'))
     }
@@ -126,9 +179,11 @@ function removeAttachment(id) {
   if (idx === -1) return
   const [removed] = form.attachments.splice(idx, 1)
   if (removed.previewUrl) URL.revokeObjectURL(removed.previewUrl)
+  if (previewAttachment.value && previewAttachment.value.id === id) closePreview()
   if (!form.attachments.length) {
     documentSummary.value = ''
     setDocumentQuestions([])
+    showQuestionsModal.value = false
   }
 }
 
@@ -214,6 +269,8 @@ function resetForm() {
   isDragging.value = false
   documentSummary.value = ''
   setDocumentQuestions([])
+  showQuestionsModal.value = false
+  closePreview()
   isAnalyzing.value = false
 }
 
@@ -239,6 +296,9 @@ onBeforeUnmount(() => {
   for (const a of form.attachments) {
     if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
   }
+  if (previewTempUrl) URL.revokeObjectURL(previewTempUrl)
+  window.removeEventListener('keydown', onKeydown)
+  if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
 
 const apiErrorMessages = computed(() => {
@@ -541,34 +601,176 @@ async function submit() {
             {{ t('symptom_form.attachments_label') }}
           </label>
 
-          <label
-            for="symptom-attachments"
+          <div
             data-testid="upload-zone"
             @dragover="onDragOver"
             @dragleave="onDragLeave"
             @drop="onDrop"
             :class="[
-              'relative flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-10 sm:py-8 rounded-xl cursor-pointer text-center min-h-[140px]',
-              'border-2 border-dashed transition',
+              'relative rounded-xl border-2 border-dashed transition overflow-hidden',
               'bg-white/70 dark:bg-slate-900/50 sm:bg-white/60 sm:dark:bg-slate-900/40 backdrop-blur-sm sm:backdrop-blur-md',
               isDragging
                 ? 'border-brand bg-brand/5 dark:bg-emerald-900/20'
-                : 'border-slate-300 dark:border-slate-600 hover:border-brand hover:bg-brand/5 dark:hover:bg-emerald-900/20'
+                : 'border-slate-300 dark:border-slate-600'
             ]"
           >
-            <svg class="h-10 w-10 text-slate-400 dark:text-slate-500"
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M7 18a5 5 0 1 1 .9-9.92A6 6 0 0 1 19 13a4 4 0 0 1-1 7.87"/>
-              <path d="M12 12v8"/>
-              <path d="M9 15l3-3 3 3"/>
-            </svg>
-            <span class="text-sm text-slate-600 dark:text-slate-300">
-              {{ t('symptom_form.attachments_hint') }}
-            </span>
-            <span class="text-xs text-slate-400 dark:text-slate-500">
-              {{ t('symptom_form.attachments_types') }}
-            </span>
+            <label
+              v-if="!form.attachments.length"
+              for="symptom-attachments"
+              class="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-10 sm:py-8 text-center min-h-[140px] cursor-pointer rounded-xl
+                     hover:bg-brand/5 dark:hover:bg-emerald-900/20 transition"
+            >
+              <svg class="h-10 w-10 text-slate-400 dark:text-slate-500"
+                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 18a5 5 0 1 1 .9-9.92A6 6 0 0 1 19 13a4 4 0 0 1-1 7.87"/>
+                <path d="M12 12v8"/>
+                <path d="M9 15l3-3 3 3"/>
+              </svg>
+              <span class="text-sm text-slate-600 dark:text-slate-300">
+                {{ t('symptom_form.attachments_hint') }}
+              </span>
+              <span class="text-xs text-slate-400 dark:text-slate-500">
+                {{ t('symptom_form.attachments_types') }}
+              </span>
+            </label>
+
+            <div v-else class="p-3 sm:p-4">
+              <ul
+                data-testid="attachments-preview"
+                class="grid grid-cols-2 sm:grid-cols-3 gap-3"
+              >
+                <li
+                  v-for="att in form.attachments"
+                  :key="att.id"
+                  data-testid="attachment-item"
+                  :data-name="att.name"
+                  class="relative rounded-xl overflow-hidden
+                         bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
+                         backdrop-blur-sm sm:backdrop-blur-md
+                         border border-white/60 dark:border-white/10
+                         ring-1 ring-slate-900/5 dark:ring-white/5"
+                >
+                  <div class="aspect-square flex items-center justify-center bg-slate-50 dark:bg-slate-900/40">
+                    <img
+                      v-if="att.previewUrl"
+                      :src="att.previewUrl"
+                      :alt="att.name"
+                      data-testid="attachment-thumbnail"
+                      class="h-full w-full object-cover"
+                    />
+                    <svg v-else
+                         data-testid="attachment-icon"
+                         class="h-10 w-10 text-slate-400 dark:text-slate-500"
+                         viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <path d="M14 2v6h6"/>
+                      <path d="M9 13h6"/>
+                      <path d="M9 17h6"/>
+                    </svg>
+                  </div>
+                  <div class="px-2 py-1.5 text-xs">
+                    <div class="truncate text-slate-700 dark:text-slate-200" :title="att.name">{{ att.name }}</div>
+                    <div class="text-slate-400 dark:text-slate-500">{{ formatSize(att.size) }}</div>
+                  </div>
+                  <div class="absolute top-1.5 end-1.5 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      :aria-label="t('symptom_form.document_preview')"
+                      :title="t('symptom_form.document_preview')"
+                      data-testid="attachment-preview"
+                      @click="openPreview(att)"
+                      class="inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full
+                             bg-white/95 dark:bg-slate-900/85 backdrop-blur
+                             border border-white/70 dark:border-white/10
+                             text-slate-700 dark:text-slate-200
+                             hover:bg-brand/10 hover:text-brand-dark
+                             dark:hover:bg-emerald-900/40 dark:hover:text-emerald-300
+                             transition shadow"
+                    >
+                      <svg class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none"
+                           stroke="currentColor" stroke-width="2"
+                           stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      :aria-label="t('symptom_form.attachments_remove')"
+                      :title="t('symptom_form.attachments_remove')"
+                      data-testid="attachment-remove"
+                      @click="removeAttachment(att.id)"
+                      class="inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full
+                             bg-white/95 dark:bg-slate-900/85 backdrop-blur
+                             border border-white/70 dark:border-white/10
+                             text-slate-700 dark:text-slate-200
+                             hover:bg-red-50 hover:text-red-600
+                             dark:hover:bg-red-900/40 dark:hover:text-red-300
+                             transition shadow"
+                    >
+                      <svg class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none"
+                           stroke="currentColor" stroke-width="2.4"
+                           stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </li>
+              </ul>
+
+              <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <label
+                  for="symptom-attachments"
+                  class="inline-flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer
+                         text-xs font-medium text-slate-500 dark:text-slate-400
+                         hover:text-brand-dark dark:hover:text-emerald-300 transition"
+                >
+                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                  {{ t('symptom_form.attachments_add_more') }}
+                </label>
+
+                <button
+                  type="button"
+                  :disabled="isAnalyzing"
+                  data-testid="analyze-documents-button"
+                  @click="analyzeDocuments"
+                  class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                         bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
+                         border border-white/60 dark:border-white/10
+                         ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+                         text-sm font-semibold text-brand-dark dark:text-emerald-300
+                         shadow-sm hover:bg-brand/5 dark:hover:bg-emerald-900/20
+                         transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    v-if="isAnalyzing"
+                    data-testid="analyze-documents-spinner"
+                    class="h-4 w-4 animate-spin"
+                    viewBox="0 0 24 24" fill="none"
+                  >
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-opacity="0.25"/>
+                    <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                  </svg>
+                  <svg
+                    v-else
+                    class="h-4 w-4"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  >
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    <path d="M9 9h6"/>
+                    <path d="M9 13h4"/>
+                  </svg>
+                  {{ isAnalyzing ? t('symptom_form.analyzing_documents') : t('symptom_form.analyze_documents') }}
+                </button>
+              </div>
+            </div>
+
             <input
               id="symptom-attachments"
               type="file"
@@ -578,46 +780,6 @@ async function submit() {
               class="sr-only"
               @change="onFileChange"
             />
-          </label>
-
-          <div
-            v-if="form.attachments.length"
-            class="mt-3 flex flex-wrap items-center gap-3"
-          >
-            <button
-              type="button"
-              :disabled="isAnalyzing"
-              data-testid="analyze-documents-button"
-              @click="analyzeDocuments"
-              class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
-                     bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
-                     border border-white/60 dark:border-white/10
-                     ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-                     text-sm font-semibold text-brand-dark dark:text-emerald-300
-                     shadow-sm hover:bg-brand/5 dark:hover:bg-emerald-900/20
-                     transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <svg
-                v-if="isAnalyzing"
-                data-testid="analyze-documents-spinner"
-                class="h-4 w-4 animate-spin"
-                viewBox="0 0 24 24" fill="none"
-              >
-                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-opacity="0.25"/>
-                <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-              </svg>
-              <svg
-                v-else
-                class="h-4 w-4"
-                viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              >
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                <path d="M9 9h6"/>
-                <path d="M9 13h4"/>
-              </svg>
-              {{ isAnalyzing ? t('symptom_form.analyzing_documents') : t('symptom_form.analyze_documents') }}
-            </button>
           </div>
 
           <div
@@ -636,113 +798,25 @@ async function submit() {
           </div>
 
           <Transition name="questions-slide">
-            <div
-              v-if="documentQuestions.length"
-              data-testid="document-questions"
-              class="mt-3 rounded-xl p-3 sm:p-4 space-y-4
-                     bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
-                     border border-white/60 dark:border-white/10
-                     ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-                     text-sm text-slate-700 dark:text-slate-200"
+            <button
+              v-if="answersSubmitted"
+              type="button"
+              data-testid="answers-saved-badge"
+              @click="openQuestionsModal"
+              class="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg
+                     bg-emerald-50/80 dark:bg-emerald-900/30 backdrop-blur-md
+                     border border-emerald-200/80 dark:border-emerald-700/40
+                     ring-1 ring-emerald-500/10
+                     text-sm font-medium text-emerald-700 dark:text-emerald-300
+                     hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 transition"
             >
-              <div>
-                <div class="font-semibold text-brand-dark dark:text-emerald-300">
-                  {{ t('symptom_form.document_questions_title') }}
-                </div>
-                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  {{ t('symptom_form.document_questions_hint') }}
-                </p>
-              </div>
-
-              <div
-                v-for="(question, i) in documentQuestions"
-                :key="i"
-                data-testid="document-question-item"
-              >
-                <label
-                  :for="`document-question-${i}`"
-                  class="block font-medium text-slate-700 dark:text-slate-300 mb-1"
-                >
-                  {{ question }}
-                </label>
-                <input
-                  :id="`document-question-${i}`"
-                  v-model="userAnswers[i]"
-                  type="text"
-                  data-testid="document-question-answer"
-                  :placeholder="t('symptom_form.document_questions_answer_placeholder')"
-                  class="w-full px-4 py-3 rounded-lg
-                         bg-white dark:bg-slate-900/60
-                         border border-slate-300 dark:border-slate-600
-                         text-slate-800 dark:text-slate-100
-                         placeholder:text-slate-400 dark:placeholder:text-slate-500
-                         focus:ring-2 focus:ring-brand focus:outline-none"
-                />
-              </div>
-            </div>
+              <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+              {{ t('symptom_form.answers_saved_badge') }}
+            </button>
           </Transition>
-
-          <ul
-            v-if="form.attachments.length"
-            data-testid="attachments-preview"
-            class="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3"
-          >
-            <li
-              v-for="att in form.attachments"
-              :key="att.id"
-              data-testid="attachment-item"
-              :data-name="att.name"
-              class="relative rounded-xl overflow-hidden
-                     bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
-                     backdrop-blur-sm sm:backdrop-blur-md
-                     border border-white/60 dark:border-white/10
-                     ring-1 ring-slate-900/5 dark:ring-white/5"
-            >
-              <div class="aspect-square flex items-center justify-center bg-slate-50 dark:bg-slate-900/40">
-                <img
-                  v-if="att.previewUrl"
-                  :src="att.previewUrl"
-                  :alt="att.name"
-                  data-testid="attachment-thumbnail"
-                  class="h-full w-full object-cover"
-                />
-                <svg v-else
-                     data-testid="attachment-icon"
-                     class="h-10 w-10 text-slate-400 dark:text-slate-500"
-                     viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <path d="M14 2v6h6"/>
-                  <path d="M9 13h6"/>
-                  <path d="M9 17h6"/>
-                </svg>
-              </div>
-              <div class="px-2 py-1.5 text-xs">
-                <div class="truncate text-slate-700 dark:text-slate-200" :title="att.name">{{ att.name }}</div>
-                <div class="text-slate-400 dark:text-slate-500">{{ formatSize(att.size) }}</div>
-              </div>
-              <button
-                type="button"
-                :aria-label="t('symptom_form.attachments_remove')"
-                :title="t('symptom_form.attachments_remove')"
-                data-testid="attachment-remove"
-                @click="removeAttachment(att.id)"
-                class="absolute top-1.5 end-1.5 inline-flex h-8 w-8 sm:h-7 sm:w-7 items-center justify-center rounded-full
-                       bg-white/95 dark:bg-slate-900/85 backdrop-blur
-                       border border-white/70 dark:border-white/10
-                       text-slate-700 dark:text-slate-200
-                       hover:bg-red-50 hover:text-red-600
-                       dark:hover:bg-red-900/40 dark:hover:text-red-300
-                       transition shadow"
-              >
-                <svg class="h-4 w-4 sm:h-3.5 sm:w-3.5" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.4"
-                     stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </li>
-          </ul>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -968,6 +1042,184 @@ async function submit() {
       </button>
     </div>
   </Transition>
+
+  <!-- Follow-up questions modal -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div
+        v-if="showQuestionsModal"
+        data-testid="questions-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4
+               bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-sm"
+        @click.self="closeQuestionsModal"
+      >
+        <Transition name="modal-pop" appear>
+          <div
+            v-if="showQuestionsModal"
+            role="dialog"
+            aria-modal="true"
+            class="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl p-5 sm:p-7 space-y-5
+                   bg-white/90 dark:bg-slate-800/70 backdrop-blur-xl
+                   border border-white/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+                   shadow-glass dark:shadow-glass-dk"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="inline-flex h-10 w-10 items-center justify-center
+                            rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700
+                            text-white shadow-md shadow-brand/30">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <path d="M12 17h.01"/>
+                    <circle cx="12" cy="12" r="10"/>
+                  </svg>
+                </div>
+                <h2 class="text-base sm:text-lg font-semibold text-slate-800 dark:text-slate-100">
+                  {{ t('symptom_form.questions_modal_title') }}
+                </h2>
+              </div>
+              <button
+                type="button"
+                :aria-label="t('symptom_form.modal_close')"
+                :title="t('symptom_form.modal_close')"
+                data-testid="questions-modal-close"
+                @click="closeQuestionsModal"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full shrink-0
+                       bg-white/85 dark:bg-slate-900/70 backdrop-blur
+                       border border-white/70 dark:border-white/10
+                       text-slate-600 dark:text-slate-300
+                       hover:bg-slate-100 dark:hover:bg-slate-700/60 transition"
+              >
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <div
+              v-if="documentSummary"
+              class="rounded-xl p-3 sm:p-4
+                     bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm
+                     border border-white/60 dark:border-white/10
+                     ring-1 ring-slate-900/5 dark:ring-white/5
+                     text-sm text-slate-700 dark:text-slate-200"
+            >
+              <div class="font-semibold mb-1 text-brand-dark dark:text-emerald-300">
+                {{ t('symptom_form.document_summary_title') }}
+              </div>
+              <p class="whitespace-pre-wrap">{{ documentSummary }}</p>
+            </div>
+
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              {{ t('symptom_form.document_questions_hint') }}
+            </p>
+
+            <div class="space-y-4">
+              <div
+                v-for="(question, i) in documentQuestions"
+                :key="i"
+                data-testid="document-question-item"
+              >
+                <label
+                  :for="`document-question-${i}`"
+                  class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+                >
+                  {{ question }}
+                </label>
+                <input
+                  :id="`document-question-${i}`"
+                  v-model="userAnswers[i]"
+                  type="text"
+                  data-testid="document-question-answer"
+                  :placeholder="t('symptom_form.document_questions_answer_placeholder')"
+                  class="w-full px-4 py-3 rounded-lg
+                         bg-white dark:bg-slate-900/60
+                         border border-slate-300 dark:border-slate-600
+                         text-slate-800 dark:text-slate-100
+                         placeholder:text-slate-400 dark:placeholder:text-slate-500
+                         focus:ring-2 focus:ring-brand focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              data-testid="questions-modal-confirm"
+              @click="confirmAnswers"
+              class="w-full py-3 rounded-lg bg-brand text-white font-semibold
+                     shadow-md hover:bg-brand-dark transition"
+            >
+              {{ t('symptom_form.questions_modal_confirm') }}
+            </button>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- Document preview modal -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div
+        v-if="previewAttachment"
+        data-testid="preview-modal"
+        class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 sm:p-8
+               bg-slate-900/70 dark:bg-slate-950/80 backdrop-blur-md"
+        @click.self="closePreview"
+      >
+        <div class="w-full max-w-4xl flex items-center justify-between gap-3 mb-3">
+          <div class="flex items-center gap-2 min-w-0 text-white">
+            <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span class="text-sm font-medium truncate">{{ previewAttachment.name }}</span>
+          </div>
+          <button
+            type="button"
+            :aria-label="t('symptom_form.modal_close')"
+            :title="t('symptom_form.modal_close')"
+            data-testid="preview-modal-close"
+            @click="closePreview"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full shrink-0
+                   bg-white/15 hover:bg-white/25 backdrop-blur
+                   border border-white/20 text-white transition"
+          >
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div
+          class="w-full max-w-4xl flex-1 min-h-0 overflow-auto rounded-2xl
+                 bg-white/10 backdrop-blur-md border border-white/20 ring-1 ring-white/10
+                 flex items-center justify-center"
+          @click.self="closePreview"
+        >
+          <img
+            v-if="previewAttachment && isImage(previewAttachment.type)"
+            :src="previewSrc"
+            :alt="previewAttachment.name"
+            data-testid="preview-modal-image"
+            class="max-w-full max-h-[78vh] object-contain"
+          />
+          <iframe
+            v-else
+            :src="previewSrc"
+            :title="previewAttachment ? previewAttachment.name : ''"
+            data-testid="preview-modal-frame"
+            class="w-full h-[78vh] rounded-2xl bg-white"
+          ></iframe>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -988,5 +1240,26 @@ async function submit() {
 .questions-slide-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 220ms ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-pop-enter-active {
+  transition: opacity 260ms ease, transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.modal-pop-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.modal-pop-enter-from,
+.modal-pop-leave-to {
+  opacity: 0;
+  transform: translateY(12px) scale(0.97);
 }
 </style>

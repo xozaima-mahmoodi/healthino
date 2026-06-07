@@ -257,6 +257,11 @@ async function submit() {
   const symptoms = [t(`symptoms.${form.symptomChoice}`)]
   const extra = form.additionalInfo.trim()
   if (extra) symptoms.push(extra)
+  const documentQuestionList = documentQuestions.value
+  const documentAnswers = documentQuestionList.map((question, i) => ({
+    question,
+    answer: (userAnswers[i] || '').trim()
+  }))
   const payload = {
     symptoms,
     severity: Number(form.severity),
@@ -268,6 +273,10 @@ async function submit() {
     medical_history_details: form.medical_history ? form.medical_history_details.trim() : null,
     medication: !!form.medication,
     medication_details: form.medication ? form.medication_details.trim() : null,
+    document_summary: documentSummary.value || null,
+    document_questions: documentQuestionList,
+    user_answers: { ...userAnswers },
+    document_answers: documentAnswers,
     locale: localeStore.current
   }
   const ok = await symptomStore.analyze(payload)

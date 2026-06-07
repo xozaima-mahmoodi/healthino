@@ -11,17 +11,21 @@ module Api
         end
 
         locale = params[:locale] || "fa"
+        document = document_context
 
         result = SymptomChecker::Engine.new(
           symptoms: symptoms,
           severity: params[:severity],
           body_area: params[:body_area],
           duration_hours: params[:duration_hours],
+          document_summary: document[:summary],
+          document_answers: document[:answers],
           user: current_user,
           locale: locale
         ).call
 
         payload = serialize(result, locale)
+        payload[:document_context] = document if document[:summary].present? || document[:answers].any?
         persist_assessment(symptoms, payload) if current_user
 
         render json: payload
@@ -37,6 +41,38 @@ module Api
       end
 
       private
+
+      # Normalizes the document-analysis fields sent alongside the symptom form
+      # into { summary:, answers: [{ "question" =>, "answer" => }, ...] }.
+      # Tolerates either the structured `document_answers` array or the separate
+      # `document_questions` / `user_answers` pair from the client.
+      def document_context
+        summary = params[:document_summary].presence
+
+        answers =
+          if params[:document_answers].present?
+            Array(params[:document_answers]).filter_map do |pair|
+              p = pair.respond_to?(:to_unsafe_h) ? pair.to_unsafe_h : pair.to_h
+              question = p["question"].to_s.strip
+              next if question.blank?
+
+              { "question" => question, "answer" => p["answer"].to_s.strip }
+            end
+          else
+            questions = Array(params[:document_questions]).map { |q| q.to_s.strip }
+            raw = params[:user_answers]
+            raw = raw.to_unsafe_h if raw.respond_to?(:to_unsafe_h)
+            raw = raw.is_a?(Hash) ? raw : {}
+            questions.each_with_index.filter_map do |question, i|
+              next if question.blank?
+
+              answer = (raw[i.to_s] || raw[i]).to_s.strip
+              { "question" => question, "answer" => answer }
+            end
+          end
+
+        { summary: summary, answers: answers }
+      end
 
       def persist_assessment(symptoms, payload)
         primary = symptoms.first

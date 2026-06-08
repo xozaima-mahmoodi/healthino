@@ -150,10 +150,30 @@ export const useAuthStore = defineStore('auth', {
         const body = { ...payload }
         if (typeof body.email === 'string') body.email = sanitizeEmail(body.email)
         if (typeof body.name === 'string') body.name = body.name.trim()
-        // password / password_confirmation are passed through as-is — trimming would
-        // silently change the user's intended secret.
+        // Profile metadata only (name/email/locale). Password changes go through
+        // updatePassword() against the dedicated verified endpoint.
         const { data } = await api.patch('/api/v1/user', body)
         this.setUser(data.user)
+        return true
+      } catch (e) {
+        this.error = e?.response?.data || { message: e?.message || 'request_failed' }
+        return false
+      } finally {
+        this.submitting = false
+      }
+    },
+    // Dedicated, security-sensitive password change. Hits the verified endpoint
+    // that requires the current password — passwords are never trimmed.
+    async updatePassword({ current_password, password, password_confirmation }) {
+      this.submitting = true
+      this.error = null
+      try {
+        const { data } = await api.put('/api/v1/profile/update_password', {
+          current_password,
+          password,
+          password_confirmation
+        })
+        if (data?.user) this.setUser(data.user)
         return true
       } catch (e) {
         this.error = e?.response?.data || { message: e?.message || 'request_failed' }

@@ -6,7 +6,8 @@ vi.mock('../src/api/client', () => ({
   api: {
     get: vi.fn(() => new Promise(() => {})),
     post: vi.fn(() => new Promise(() => {})),
-    patch: vi.fn(() => new Promise(() => {}))
+    patch: vi.fn(() => new Promise(() => {})),
+    put: vi.fn(() => new Promise(() => {}))
   }
 }))
 
@@ -120,90 +121,121 @@ describe('UserProfile.vue', () => {
   })
 })
 
-describe('UserProfile.vue — password change', () => {
-  async function enterEdit() {
-    const { wrapper } = await mountProfile()
-    await wrapper.find('[data-testid="profile-edit-button"]').trigger('click')
-    return wrapper
-  }
+describe('UserProfile.vue — change password', () => {
+  const STRONG = 'StrongPass1!'
 
-  it('renders the new + confirm password inputs as type="password" with eye toggles', async () => {
-    const wrapper = await enterEdit()
+  it('renders 3 password fields (current/new/confirm) as type="password", each with an eye toggle', async () => {
+    const { wrapper } = await mountProfile()
+    const current = wrapper.find('[data-testid="profile-current-password-input"]')
     const newPw = wrapper.find('[data-testid="profile-new-password-input"]')
     const confirmPw = wrapper.find('[data-testid="profile-confirm-password-input"]')
 
+    expect(current.exists()).toBe(true)
     expect(newPw.exists()).toBe(true)
     expect(confirmPw.exists()).toBe(true)
+    expect(current.attributes('type')).toBe('password')
     expect(newPw.attributes('type')).toBe('password')
     expect(confirmPw.attributes('type')).toBe('password')
 
+    await wrapper.find('[data-testid="profile-current-password-toggle"]').trigger('click')
+    expect(current.attributes('type')).toBe('text')
     await wrapper.find('[data-testid="profile-new-password-toggle"]').trigger('click')
     expect(newPw.attributes('type')).toBe('text')
-    await wrapper.find('[data-testid="profile-new-password-toggle"]').trigger('click')
-    expect(newPw.attributes('type')).toBe('password')
+    await wrapper.find('[data-testid="profile-confirm-password-toggle"]').trigger('click')
+    expect(confirmPw.attributes('type')).toBe('text')
   })
 
-  it('keeps Save enabled when both password fields are blank (profile-only edit)', async () => {
-    const wrapper = await enterEdit()
-    const save = wrapper.find('[data-testid="profile-save-button"]')
-    expect(save.attributes('disabled')).toBeUndefined()
-    expect(wrapper.find('[data-testid="profile-password-error"]').exists()).toBe(false)
-  })
+  it('keeps the Change Password button disabled until every rule passes', async () => {
+    const { wrapper } = await mountProfile()
+    const btn = () => wrapper.find('[data-testid="profile-change-password-button"]')
 
-  it('disables Save and shows the mismatch hint when the two passwords differ', async () => {
-    const wrapper = await enterEdit()
-    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('SuperSecret1')
-    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('Different99')
+    expect(btn().attributes('disabled')).toBeDefined()
+
+    await wrapper.find('[data-testid="profile-current-password-input"]').setValue('oldsecret')
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue(STRONG)
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue(STRONG)
     await nextTick()
 
-    const save = wrapper.find('[data-testid="profile-save-button"]')
-    expect(save.attributes('disabled')).toBeDefined()
+    expect(btn().attributes('disabled')).toBeUndefined()
+  })
+
+  it('shows a real-time mismatch warning and disables submit when new/confirm differ', async () => {
+    const { wrapper } = await mountProfile()
+    await wrapper.find('[data-testid="profile-current-password-input"]').setValue('oldsecret')
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue(STRONG)
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('Different1!')
+    await nextTick()
 
     const hint = wrapper.find('[data-testid="profile-password-error"]')
     expect(hint.exists()).toBe(true)
     expect(hint.text()).toBe(faMessages.profile.password_mismatch)
+    expect(wrapper.find('[data-testid="profile-change-password-button"]').attributes('disabled')).toBeDefined()
   })
 
-  it('disables Save and shows the too-short hint when the new password is < 8 chars', async () => {
-    const wrapper = await enterEdit()
-    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('short7c')
-    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('short7c')
+  it('reflects the strength rules (length / number / special) live and blocks weak passwords', async () => {
+    const { wrapper } = await mountProfile()
+    await wrapper.find('[data-testid="profile-current-password-input"]').setValue('oldsecret')
+    const newPw = wrapper.find('[data-testid="profile-new-password-input"]')
+
+    // length only — number + special still missing → still disabled
+    await newPw.setValue('abcdefgh')
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('abcdefgh')
     await nextTick()
+    expect(wrapper.find('[data-testid="pw-rule-length"]').text()).toContain('✓')
+    expect(wrapper.find('[data-testid="pw-rule-number"]').text()).toContain('○')
+    expect(wrapper.find('[data-testid="pw-rule-special"]').text()).toContain('○')
+    expect(wrapper.find('[data-testid="profile-change-password-button"]').attributes('disabled')).toBeDefined()
 
-    const save = wrapper.find('[data-testid="profile-save-button"]')
-    expect(save.attributes('disabled')).toBeDefined()
-
-    const hint = wrapper.find('[data-testid="profile-password-error"]')
-    expect(hint.exists()).toBe(true)
-    expect(hint.text()).toBe(faMessages.profile.password_too_short)
-  })
-
-  it('enables Save and clears the hint once both passwords match and meet the 8-char minimum', async () => {
-    const wrapper = await enterEdit()
-    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('LongEnough1')
-    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('LongEnough1')
+    // all three rules satisfied → enabled
+    await newPw.setValue('abcdefg1!')
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('abcdefg1!')
     await nextTick()
-
-    expect(wrapper.find('[data-testid="profile-save-button"]').attributes('disabled')).toBeUndefined()
-    expect(wrapper.find('[data-testid="profile-password-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="pw-rule-number"]').text()).toContain('✓')
+    expect(wrapper.find('[data-testid="pw-rule-special"]').text()).toContain('✓')
+    expect(wrapper.find('[data-testid="profile-change-password-button"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('forwards password + password_confirmation to updateProfile and shows the password-success toast', async () => {
-    const wrapper = await enterEdit()
+  it('calls auth.updatePassword with current/new/confirm and shows the success toast', async () => {
+    const { wrapper } = await mountProfile()
     const auth = useAuthStore()
-    const updateSpy = vi.spyOn(auth, 'updateProfile').mockResolvedValue(true)
+    const updateSpy = vi.spyOn(auth, 'updatePassword').mockResolvedValue(true)
 
-    await wrapper.find('[data-testid="profile-new-password-input"]').setValue('LongEnough1')
-    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue('LongEnough1')
-    await wrapper.find('[data-testid="profile-edit-form"]').trigger('submit')
+    await wrapper.find('[data-testid="profile-current-password-input"]').setValue('oldsecret')
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue(STRONG)
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue(STRONG)
+    await wrapper.find('[data-testid="profile-password-section"]').trigger('submit')
     await nextTick()
 
     expect(updateSpy).toHaveBeenCalledTimes(1)
-    const payload = updateSpy.mock.calls[0][0]
-    expect(payload.password).toBe('LongEnough1')
-    expect(payload.password_confirmation).toBe('LongEnough1')
-    expect(payload.name).toBe('خزیمه محمودی')
-    expect(payload.email).toBe('k@gmail.com')
+    expect(updateSpy).toHaveBeenCalledWith({
+      current_password: 'oldsecret',
+      password: STRONG,
+      password_confirmation: STRONG
+    })
+    // fields are cleared and the inline success note appears
+    expect(wrapper.find('[data-testid="profile-current-password-input"]').element.value).toBe('')
+    expect(wrapper.find('[data-testid="profile-password-saved"]').exists()).toBe(true)
+  })
+
+  it('surfaces an incorrect-current-password error returned by the server', async () => {
+    const { wrapper } = await mountProfile()
+    const auth = useAuthStore()
+    vi.spyOn(auth, 'updatePassword').mockImplementation(async () => {
+      auth.error = { errors: { current_password: ['is incorrect'] } }
+      return false
+    })
+
+    await wrapper.find('[data-testid="profile-current-password-input"]').setValue('wrongpass')
+    await wrapper.find('[data-testid="profile-new-password-input"]').setValue(STRONG)
+    await wrapper.find('[data-testid="profile-confirm-password-input"]').setValue(STRONG)
+    await wrapper.find('[data-testid="profile-password-section"]').trigger('submit')
+    await nextTick()
+
+    const err = wrapper.find('[data-testid="profile-password-server-error"]')
+    expect(err.exists()).toBe(true)
+    expect(err.text()).toBe(faMessages.profile.password_current_incorrect)
+    // the password error must not leak into the profile-wide error banner
+    expect(wrapper.find('[data-testid="profile-error"]').exists()).toBe(false)
   })
 })
 
@@ -232,5 +264,60 @@ describe('auth.updateProfile', () => {
     )
     expect(auth.user.name).toBe('New')
     expect(auth.user.email).toBe('new@example.com')
+  })
+})
+
+describe('auth.updatePassword', () => {
+  it('PUTs to the dedicated endpoint with untrimmed credentials and stores the returned user', async () => {
+    await makeTestPlugins({ path: '/' })
+    const auth = useAuthStore()
+    auth.setSession({
+      token: 'tok',
+      user: { id: 1, name: 'A', email: 'a@example.com', display_name: 'A', is_doctor: false }
+    })
+
+    const { api } = await import('../src/api/client')
+    api.put.mockResolvedValueOnce({
+      data: {
+        message: 'password_updated',
+        user: { id: 1, name: 'A', email: 'a@example.com', display_name: 'A', is_doctor: false }
+      }
+    })
+
+    const ok = await auth.updatePassword({
+      current_password: ' old ',
+      password: 'StrongPass1! ',
+      password_confirmation: 'StrongPass1! '
+    })
+
+    expect(ok).toBe(true)
+    expect(api.put).toHaveBeenCalledWith('/api/v1/profile/update_password', {
+      current_password: ' old ',
+      password: 'StrongPass1! ',
+      password_confirmation: 'StrongPass1! '
+    })
+  })
+
+  it('returns false and records the error on failure', async () => {
+    await makeTestPlugins({ path: '/' })
+    const auth = useAuthStore()
+    auth.setSession({
+      token: 'tok',
+      user: { id: 1, name: 'A', email: 'a@example.com', display_name: 'A', is_doctor: false }
+    })
+
+    const { api } = await import('../src/api/client')
+    api.put.mockRejectedValueOnce({
+      response: { status: 401, data: { errors: { current_password: ['is incorrect'] } } }
+    })
+
+    const ok = await auth.updatePassword({
+      current_password: 'wrong',
+      password: 'StrongPass1!',
+      password_confirmation: 'StrongPass1!'
+    })
+
+    expect(ok).toBe(false)
+    expect(auth.error).toEqual({ errors: { current_password: ['is incorrect'] } })
   })
 })

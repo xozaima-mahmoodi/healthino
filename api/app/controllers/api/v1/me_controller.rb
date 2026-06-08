@@ -6,23 +6,16 @@ module Api
       before_action :authenticate_user!
 
       PROFILE_FIELDS = %i[name email preferred_locale].freeze
-      PASSWORD_FIELDS = %i[password password_confirmation].freeze
 
       def show
         render json: { user: serialize(current_user) }
       end
 
+      # Profile metadata only. Password changes go through the dedicated,
+      # current-password-verified endpoint (ProfileController#update_password)
+      # and are intentionally NOT accepted here.
       def update
-        profile_attrs  = params.permit(*PROFILE_FIELDS).to_h.compact_blank
-        password_attrs = params.permit(*PASSWORD_FIELDS).to_h
-
-        if password_attrs[:password].present?
-          if password_attrs[:password] != password_attrs[:password_confirmation]
-            return render json: { errors: { password_confirmation: ["doesn't match password"] } },
-                          status: :unprocessable_content
-          end
-          profile_attrs.merge!(password_attrs)
-        end
+        profile_attrs = params.permit(*PROFILE_FIELDS).to_h.compact_blank
 
         if current_user.update(profile_attrs)
           render json: { user: serialize(current_user) }

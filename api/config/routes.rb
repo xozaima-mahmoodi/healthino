@@ -9,6 +9,7 @@ Rails.application.routes.draw do
       post "auth/login",      to: "auth#login"
       get   "me",   to: "me#show"
       patch "user", to: "me#update"
+      put   "profile/update_password", to: "profile#update_password"
       resources :specialties, only: %i[index show]
       resources :doctors,     only: %i[index show]
       resources :assessments, only: %i[index] do

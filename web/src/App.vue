@@ -6,10 +6,10 @@ import { useLocaleStore } from './stores/locale'
 import { useThemeStore } from './stores/theme'
 import { useHealthStore } from './stores/health'
 import { useToastStore } from './stores/toast'
-import { useIdleLogout } from './composables/useIdleLogout'
 import { useGlobalErrorBoundary } from './composables/useGlobalErrorBoundary'
 import { logResolvedBaseUrl } from './api/client'
 import ToastContainer from './components/ToastContainer.vue'
+import IdleWarningModal from './components/IdleWarningModal.vue'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -17,7 +17,6 @@ const themeStore = useThemeStore()
 const healthStore = useHealthStore()
 const toast = useToastStore()
 
-useIdleLogout()
 useGlobalErrorBoundary({ message: t('toast.unexpected_error') })
 
 onMounted(async () => {
@@ -32,4 +31,5 @@ onMounted(async () => {
 <template>
   <RouterView />
   <ToastContainer />
+  <IdleWarningModal />
 </template>

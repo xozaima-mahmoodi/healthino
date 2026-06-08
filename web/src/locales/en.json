@@ -33,12 +33,18 @@
     "analysis_error": "Symptom analysis failed. Please try again.",
     "profile_update_error": "Failed to save profile changes.",
     "password_update_success": "Password updated successfully.",
-    "idle_logout": "You were signed out due to inactivity.",
+    "idle_logout": "Your session has expired due to inactivity.",
     "hard_reset_success": "App state cleared. Please try again.",
     "server_unreachable": "Cannot reach the server. Please check your connection and try again.",
     "unexpected_error": "An unexpected error occurred. Please try again.",
     "document_analysis_success": "Document analysis completed successfully.",
     "document_analysis_error": "Document analysis failed. Please try again."
+  },
+  "idle_warning": {
+    "title": "Session Timeout Warning",
+    "message": "You will be signed out in {seconds} seconds due to inactivity.",
+    "stay": "Stay Logged In",
+    "logout_now": "Logout Now"
   },
   "profile": {
     "title": "My profile",

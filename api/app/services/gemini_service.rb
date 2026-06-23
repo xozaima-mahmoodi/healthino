@@ -63,12 +63,23 @@ class GeminiService
     SUPPORTED_LOCALES.include?(loc) ? loc : DEFAULT_LOCALE
   end
 
+  # Opt-in offline switch (GEMINI_STUB=1). Lets the frontend exercise the full
+  # document-analysis flow without a reachable proxy or API key — e.g. when
+  # Google is geo-blocked and the Worker isn't deployed yet. This is explicit
+  # only: it is never on by default, in any environment.
+  def self.stub_enabled?
+    ActiveModel::Type::Boolean.new.cast(ENV["GEMINI_STUB"]) || false
+  end
+
   def initialize(api_key: nil, model: nil, proxy_url: nil)
     @api_key = api_key ||
                Rails.application.credentials.dig(:gemini, :api_key) ||
                ENV["GEMINI_API_KEY"]
     @proxy_url = (proxy_url || ENV["GEMINI_PROXY_URL"]).to_s.strip.chomp("/")
     @model = model || ENV["GEMINI_MODEL"].presence || DEFAULT_MODEL
+
+    # In stub mode we never call the API, so missing config is fine.
+    return if self.class.stub_enabled?
 
     raise ConfigurationError, "GEMINI_PROXY_URL is not configured" if @proxy_url.blank?
     raise ConfigurationError, "GEMINI_API_KEY is not configured"   if @api_key.blank?
@@ -84,6 +95,9 @@ class GeminiService
 
     loc = self.class.normalize_locale(locale)
     prompt ||= self.class.build_prompt(loc)
+
+    # Short-circuit to canned data when the offline switch is on.
+    return stub_analysis(loc) if self.class.stub_enabled?
 
     file.rewind if file.respond_to?(:rewind)
     encoded = Base64.strict_encode64(file.read.to_s)
@@ -105,6 +119,42 @@ class GeminiService
   end
 
   private
+
+  # Canned, localized response used only when GEMINI_STUB is on. Mirrors the
+  # real { "summary", "questions" } contract (a CBC/iron panel consistent with
+  # iron-deficiency anemia) so the UI flow can be built offline.
+  STUB_ANALYSIS = {
+    "fa" => {
+      "summary" => "آزمایش خون نشان‌دهنده‌ی کم‌خونی فقر آهن است: هموگلوبین و فریتین پایین‌تر از حد طبیعی و گلبول‌های قرمز کوچک‌تر از معمول گزارش شده‌اند. سایر شاخص‌ها در محدوده‌ی طبیعی قرار دارند.",
+      "questions" => [
+        "آیا احساس خستگی مفرط یا سرگیجه در طول روز دارید؟",
+        "آیا در رژیم غذایی خود از منابع آهن مانند گوشت قرمز یا سبزیجات برگ‌سبز استفاده می‌کنید؟",
+        "آیا اخیراً خونریزی غیرعادی (مثلاً قاعدگی شدید یا مشکلات گوارشی) داشته‌اید؟"
+      ]
+    },
+    "en" => {
+      "summary" => "The blood test indicates iron-deficiency anemia: hemoglobin and ferritin are below the normal range and the red blood cells are smaller than usual. All other markers are within normal limits.",
+      "questions" => [
+        "Do you feel excessive fatigue or dizziness during the day?",
+        "Does your diet include iron sources such as red meat or leafy green vegetables?",
+        "Have you had any unusual bleeding recently (e.g. heavy menstruation or digestive issues)?"
+      ]
+    },
+    "ckb" => {
+      "summary" => "پشکنینی خوێن ئاماژە بە کەمخوێنی کەمی ئاسن دەکات: هیمۆگلۆبین و فێریتین لە ئاستی ئاسایی کەمترن و خانە سوورەکانی خوێن لە ئاساییەوە بچووکترن. هەموو پێوەرەکانی تر لە سنووری ئاساییدان.",
+      "questions" => [
+        "ئایا بە درێژایی ڕۆژ هەست بە ماندووبوونی زۆر یان سەرگێژە دەکەیت؟",
+        "ئایا لە خۆراکەکەتدا سەرچاوەی ئاسن وەک گۆشتی سوور یان سەوزەی گەڵا سەوز هەیە؟",
+        "ئایا ئەم دواییە خوێنبەربوونی نائاسایت هەبووە (بۆ نموونە سووڕی مانگانەی قورس یان کێشەی گەدە)؟"
+      ]
+    }
+  }.freeze
+
+  def stub_analysis(locale = DEFAULT_LOCALE)
+    loc = self.class.normalize_locale(locale)
+    Rails.logger.warn("[GeminiService] GEMINI_STUB on — returning canned analysis (locale: #{loc})")
+    STUB_ANALYSIS.fetch(loc, STUB_ANALYSIS[DEFAULT_LOCALE])
+  end
 
   # POSTs to {proxy}/v1beta/models/{model}:generateContent. The API key travels
   # in the x-goog-api-key header (not the query string) so it stays out of proxy

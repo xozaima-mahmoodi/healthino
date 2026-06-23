@@ -49,6 +49,27 @@ RSpec.describe GeminiService do
     end
   end
 
+  describe "GEMINI_STUB offline switch" do
+    around do |example|
+      original = ENV["GEMINI_STUB"]
+      ENV["GEMINI_STUB"] = "1"
+      example.run
+      ENV["GEMINI_STUB"] = original
+    end
+
+    it "boots without a proxy URL or API key" do
+      expect { described_class.new(api_key: "", proxy_url: "") }.not_to raise_error
+    end
+
+    it "returns canned localized data without making any request" do
+      # No stub_gemini: a real connection attempt would raise, proving none happens.
+      result = described_class.new(api_key: "", proxy_url: "").analyze_document(fake_file, locale: "ckb")
+      expect(result["summary"]).to be_present
+      expect(result["questions"].length).to eq(3)
+      expect(result).to eq(described_class.const_get(:STUB_ANALYSIS)["ckb"])
+    end
+  end
+
   describe "#analyze_document request shape" do
     it "POSTs to the proxied generateContent endpoint with the key header and inline document" do
       captured = {}

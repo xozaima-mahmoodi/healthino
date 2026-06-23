@@ -27,7 +27,9 @@ gem "thruster", require: false
 
 gem "rack-cors"
 
-gem "gemini-ai", "~> 4.3"
+# HTTP client for the Gemini reverse-proxy integration (app/services/gemini_service.rb).
+# Already resolved transitively, declared here because we now depend on it directly.
+gem "faraday", "~> 2.13"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

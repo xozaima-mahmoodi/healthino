@@ -1,0 +1,6 @@
+name = "healthino-gemini-proxy"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+# No secrets live in the Worker: the Rails app sends the Gemini API key in the
+# x-goog-api-key header, which this proxy forwards untouched.

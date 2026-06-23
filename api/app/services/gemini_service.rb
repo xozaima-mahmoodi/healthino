@@ -1,11 +1,28 @@
 require "base64"
 require "json"
+require "faraday"
 
+# Talks to the Gemini generateContent API through our Cloudflare Worker reverse
+# proxy (see cloudflare-worker/worker.js). The proxy forwards verbatim to
+# https://generativelanguage.googleapis.com, which lets us reach Gemini from
+# regions where Google blocks direct access.
+#
+# Only the base URL changes: the path, headers and JSON body are exactly what
+# Google expects, so the proxy stays a dumb pass-through.
 class GeminiService
   class ConfigurationError < StandardError; end
+  # Raised for network timeouts, connection failures and non-2xx responses so
+  # callers can degrade gracefully instead of leaking Faraday internals.
+  class ApiError < StandardError; end
 
-  DEFAULT_MODEL  = "gemini-1.5-pro-latest"
+  # gemini-1.5-flash is multimodal (handles images + PDFs) and cheap/fast, which
+  # fits the single-document analysis flow. Override with GEMINI_MODEL if needed.
+  DEFAULT_MODEL  = "gemini-1.5-flash"
   SUPPORTED_MIME = ->(m) { m.to_s.start_with?("image/") || m.to_s == "application/pdf" }
+
+  # Fail fast on a dead/blocked proxy, but give the model room to think.
+  OPEN_TIMEOUT = 5   # seconds to establish the connection
+  READ_TIMEOUT = 45  # seconds to wait for the full response
 
   SUPPORTED_LOCALES = %w[fa ckb en].freeze
   DEFAULT_LOCALE    = "fa"
@@ -33,7 +50,7 @@ class GeminiService
 
       Rules:
       - "summary" must be 1-3 short sentences describing the main findings.
-      - "questions" must contain 2 to 3 specific follow-up questions for the patient,
+      - "questions" must contain exactly 3 specific follow-up questions for the patient,
         directly based on the findings (e.g. clarifying symptoms, timeline, or medications).
       - Write the "summary" and every "questions" entry entirely in #{language},
         regardless of the language used in the document.
@@ -46,28 +63,15 @@ class GeminiService
     SUPPORTED_LOCALES.include?(loc) ? loc : DEFAULT_LOCALE
   end
 
-  def initialize(api_key: nil, model: DEFAULT_MODEL)
+  def initialize(api_key: nil, model: nil, proxy_url: nil)
     @api_key = api_key ||
                Rails.application.credentials.dig(:gemini, :api_key) ||
                ENV["GEMINI_API_KEY"]
-    # In mock mode we never call the API, so a missing key is fine.
-    raise ConfigurationError, "GEMINI_API_KEY is not configured" if @api_key.blank? && !self.class.mock_enabled?
-    @model = model
-  end
+    @proxy_url = (proxy_url || ENV["GEMINI_PROXY_URL"]).to_s.strip.chomp("/")
+    @model = model || ENV["GEMINI_MODEL"].presence || DEFAULT_MODEL
 
-  # TEMPORARY: lets us exercise the full document-analysis flow without reaching
-  # the Gemini API (e.g. when it is network/geo-blocked).
-  #
-  # Resolution order:
-  #   - GEMINI_MOCK set (1/true/0/false) -> honor it explicitly
-  #   - otherwise default to ON in the development environment
-  # This way `GEMINI_MOCK=0` can force the real API in development once the
-  # network is reachable, and `GEMINI_MOCK=1` can enable it in other envs.
-  def self.mock_enabled?
-    override = ENV["GEMINI_MOCK"].to_s.strip
-    return ActiveModel::Type::Boolean.new.cast(override) unless override.empty?
-
-    Rails.env.development?
+    raise ConfigurationError, "GEMINI_PROXY_URL is not configured" if @proxy_url.blank?
+    raise ConfigurationError, "GEMINI_API_KEY is not configured"   if @api_key.blank?
   end
 
   # Returns a Hash with "summary" (String) and "questions" (Array<String>),
@@ -81,76 +85,61 @@ class GeminiService
     loc = self.class.normalize_locale(locale)
     prompt ||= self.class.build_prompt(loc)
 
-    # Skip the network entirely when mocking is active (dev / geo-blocked).
-    return mock_analysis(loc, "mock_enabled") if self.class.mock_enabled?
-
     file.rewind if file.respond_to?(:rewind)
     encoded = Base64.strict_encode64(file.read.to_s)
 
-    # NOTE: the gemini-ai gem expects the request body as a single positional
-    # Hash argument. Passing the fields as Ruby keyword arguments leaves the
-    # required `payload` positional empty and raises ArgumentError, so the body
-    # must be wrapped in explicit braces.
-    response = client.generate_content({
-      contents: { role: "user", parts: [
-        { text: prompt },
-        { inline_data: { mime_type: mime, data: encoded } }
-      ] },
+    body = {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inline_data: { mime_type: mime, data: encoded } }
+          ]
+        }
+      ],
       generationConfig: { responseMimeType: "application/json" }
-    })
+    }
 
-    parse_structured(extract_text(response))
-  rescue Faraday::ForbiddenError => e
-    # Regional geo-block (HTTP 403). Degrade gracefully to the simulated
-    # response instead of failing the request.
-    Rails.logger.warn("[GeminiService] Gemini returned 403 (likely geo-blocked): #{e.message}")
-    mock_analysis(loc, "http_403_fallback")
+    parse_structured(extract_text(generate_content(body)))
   end
 
   private
 
-  # TEMPORARY simulated response. Mirrors the real { "summary", "questions" }
-  # contract so the UI flow (summary card, questions, animations, answer inputs)
-  # can be tested offline. Models a CBC/iron panel consistent with iron-deficiency
-  # anemia (low hemoglobin, low ferritin), localized per UI language.
-  MOCK_ANALYSIS = {
-    "fa" => {
-      "summary" => "آزمایش خون نشان‌دهنده‌ی کم‌خونی فقر آهن است: هموگلوبین و فریتین پایین‌تر از حد طبیعی و گلبول‌های قرمز کوچک‌تر از معمول گزارش شده‌اند. سایر شاخص‌ها در محدوده‌ی طبیعی قرار دارند.",
-      "questions" => [
-        "آیا احساس خستگی مفرط یا سرگیجه در طول روز دارید؟",
-        "آیا در رژیم غذایی خود از منابع آهن مانند گوشت قرمز یا سبزیجات برگ‌سبز استفاده می‌کنید؟",
-        "آیا اخیراً خونریزی غیرعادی (مثلاً قاعدگی شدید یا مشکلات گوارشی) داشته‌اید؟"
-      ]
-    },
-    "en" => {
-      "summary" => "The blood test indicates iron-deficiency anemia: hemoglobin and ferritin are below the normal range and the red blood cells are smaller than usual. All other markers are within normal limits.",
-      "questions" => [
-        "Do you feel excessive fatigue or dizziness during the day?",
-        "Does your diet include iron sources such as red meat or leafy green vegetables?",
-        "Have you had any unusual bleeding recently (e.g. heavy menstruation or digestive issues)?"
-      ]
-    },
-    "ckb" => {
-      "summary" => "پشکنینی خوێن ئاماژە بە کەمخوێنی کەمی ئاسن دەکات: هیمۆگلۆبین و فێریتین لە ئاستی ئاسایی کەمترن و خانە سوورەکانی خوێن لە ئاساییەوە بچووکترن. هەموو پێوەرەکانی تر لە سنووری ئاساییدان.",
-      "questions" => [
-        "ئایا بە درێژایی ڕۆژ هەست بە ماندووبوونی زۆر یان سەرگێژە دەکەیت؟",
-        "ئایا لە خۆراکەکەتدا سەرچاوەی ئاسن وەک گۆشتی سوور یان سەوزەی گەڵا سەوز هەیە؟",
-        "ئایا ئەم دواییە خوێنبەربوونی نائاسایت هەبووە (بۆ نموونە سووڕی مانگانەی قورس یان کێشەی گەدە)؟"
-      ]
-    }
-  }.freeze
+  # POSTs to {proxy}/v1beta/models/{model}:generateContent. The API key travels
+  # in the x-goog-api-key header (not the query string) so it stays out of proxy
+  # and access logs. Returns the parsed response Hash.
+  def generate_content(body)
+    response = connection.post("v1beta/models/#{@model}:generateContent") do |req|
+      req.headers["x-goog-api-key"] = @api_key
+      req.body = body
+    end
 
-  def mock_analysis(locale = DEFAULT_LOCALE, reason = "mock")
-    loc = self.class.normalize_locale(locale)
-    Rails.logger.info("[GeminiService] returning simulated analysis (locale: #{loc}, reason: #{reason})")
-    MOCK_ANALYSIS.fetch(loc, MOCK_ANALYSIS[DEFAULT_LOCALE])
+    unless response.success?
+      detail = response.body.is_a?(Hash) ? response.body.dig("error", "message") : response.body
+      Rails.logger.error("[GeminiService] Gemini API #{response.status}: #{detail}")
+      raise ApiError, "gemini_api_error (HTTP #{response.status})"
+    end
+
+    response.body.is_a?(Hash) ? response.body : JSON.parse(response.body.to_s)
+  rescue Faraday::TimeoutError => e
+    Rails.logger.error("[GeminiService] request timed out: #{e.message}")
+    raise ApiError, "gemini_timeout"
+  rescue Faraday::ConnectionFailed => e
+    Rails.logger.error("[GeminiService] could not reach proxy #{@proxy_url}: #{e.message}")
+    raise ApiError, "gemini_unreachable"
+  rescue Faraday::Error => e
+    Rails.logger.error("[GeminiService] transport error: #{e.class}: #{e.message}")
+    raise ApiError, "gemini_request_failed"
   end
 
-  def client
-    @client ||= Gemini.new(
-      credentials: { service: "generative-language-api", api_key: @api_key },
-      options: { model: @model, server_sent_events: false }
-    )
+  def connection
+    @connection ||= Faraday.new(url: "#{@proxy_url}/") do |f|
+      f.request :json
+      f.response :json, content_type: /\bjson/
+      f.options.open_timeout = OPEN_TIMEOUT
+      f.options.timeout = READ_TIMEOUT
+    end
   end
 
   def extract_text(response)

@@ -15,9 +15,10 @@ class GeminiService
   # callers can degrade gracefully instead of leaking Faraday internals.
   class ApiError < StandardError; end
 
-  # gemini-1.5-flash is multimodal (handles images + PDFs) and cheap/fast, which
-  # fits the single-document analysis flow. Override with GEMINI_MODEL if needed.
-  DEFAULT_MODEL  = "gemini-1.5-flash"
+  # gemini-2.5-flash is multimodal (handles images + PDFs) and cheap/fast, which
+  # fits the single-document analysis flow. The 1.5 line is retired and now
+  # returns HTTP 404 from generateContent. Override with GEMINI_MODEL if needed.
+  DEFAULT_MODEL  = "gemini-2.5-flash"
   SUPPORTED_MIME = ->(m) { m.to_s.start_with?("image/") || m.to_s == "application/pdf" }
 
   # Fail fast on a dead/blocked proxy, but give the model room to think.

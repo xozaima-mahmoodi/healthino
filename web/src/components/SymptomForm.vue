@@ -358,18 +358,19 @@ async function submit() {
       v-if="!symptomStore.result"
       key="form"
       data-testid="form-card"
-      class="rounded-2xl p-4 sm:p-7
+      class="rounded-3xl p-6 md:p-8
              bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
              sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
-             border border-white/60 dark:border-white/10
+             border border-slate-200/60 dark:border-white/10
              ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-             shadow-glass dark:shadow-glass-dk"
+             shadow-soft-lg dark:shadow-glass-dk
+             transition-all duration-300 ease-out"
     >
-      <form class="space-y-5" novalidate @submit.prevent="submit">
+      <form class="space-y-6" novalidate @submit.prevent="submit">
         <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
             {{ t('symptom_form.symptoms_label') }}
-            <span class="text-red-500 ms-1" aria-hidden="true">*</span>
+            <span class="text-rose-400 ms-1" aria-hidden="true">*</span>
           </label>
           <select
             v-model="form.symptomChoice"
@@ -377,13 +378,14 @@ async function submit() {
             aria-required="true"
             :aria-invalid="!!errors.symptomChoice"
             :class="[
-              'w-full px-4 py-3 rounded-lg',
-              'bg-white dark:bg-slate-900/60',
+              'w-full px-4 py-3 rounded-xl appearance-none',
+              'bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm',
               'text-slate-800 dark:text-slate-100',
-              'focus:ring-2 focus:ring-brand focus:outline-none',
+              'shadow-sm transition-all duration-300 ease-out',
+              'focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none',
               errors.symptomChoice
-                ? 'border-2 border-red-400 dark:border-red-500/70'
-                : 'border border-slate-300 dark:border-slate-600'
+                ? 'border border-rose-300 dark:border-red-500/70 ring-2 ring-rose-200/60'
+                : 'border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80'
             ]"
           >
             <option value="" disabled>{{ t('symptom_form.symptoms_select_placeholder') }}</option>
@@ -394,25 +396,26 @@ async function submit() {
           <p
             v-if="errors.symptomChoice"
             data-testid="error-symptom"
-            class="mt-1 text-xs text-red-600 dark:text-red-400"
+            class="mt-1.5 text-xs font-medium text-rose-600 dark:text-red-400"
           >
             {{ errors.symptomChoice }}
           </p>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
               {{ t('symptom_form.gender_label') }}
             </label>
             <select
               v-model="form.gender"
               data-testid="gender-select"
-              class="w-full px-4 py-3 rounded-lg
-                     bg-white dark:bg-slate-900/60
-                     border border-slate-300 dark:border-slate-600
-                     text-slate-800 dark:text-slate-100
-                     focus:ring-2 focus:ring-brand focus:outline-none"
+              class="w-full px-4 py-3 rounded-xl appearance-none
+                     bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm
+                     border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80
+                     text-slate-800 dark:text-slate-100 shadow-sm
+                     transition-all duration-300 ease-out
+                     focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none"
             >
               <option value="">{{ t('symptom_form.gender_placeholder') }}</option>
               <option v-for="g in GENDER_OPTIONS" :key="g" :value="g">
@@ -422,7 +425,7 @@ async function submit() {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
               {{ t('symptom_form.age_label') }}
             </label>
             <input
@@ -434,37 +437,40 @@ async function submit() {
               :placeholder="t('symptom_form.age_placeholder')"
               :aria-invalid="!!errors.age"
               :class="[
-                'w-full px-4 py-3 rounded-lg',
-                'bg-white dark:bg-slate-900/60',
+                'w-full px-4 py-3 rounded-xl',
+                'bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm',
                 'text-slate-800 dark:text-slate-100',
                 'placeholder:text-slate-400 dark:placeholder:text-slate-500',
-                'focus:ring-2 focus:ring-brand focus:outline-none',
+                'transition-all duration-300 ease-out',
+                'focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none',
                 errors.age
-                  ? 'border-2 border-red-400 dark:border-red-500/70'
-                  : 'border border-slate-300 dark:border-slate-600'
+                  ? 'border border-rose-300 dark:border-red-500/70 ring-2 ring-rose-200/60'
+                  : 'border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80'
               ]"
             />
             <p
               v-if="errors.age"
               data-testid="error-age"
-              class="mt-1 text-xs text-red-600 dark:text-red-400"
+              class="mt-1.5 text-xs font-medium text-rose-600 dark:text-red-400"
             >
               {{ errors.age }}
             </p>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div
-            class="rounded-xl p-3 sm:p-4
-                   bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm
-                   border border-white/60 dark:border-white/10
-                   ring-1 ring-slate-900/5 dark:ring-white/5"
+            class="rounded-2xl p-4 sm:p-5
+                   bg-white/60 dark:bg-slate-900/40 backdrop-blur-md
+                   border border-slate-200/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-white/5
+                   shadow-soft transition-all duration-300 ease-out
+                   hover:-translate-y-0.5 hover:shadow-soft-md"
           >
             <div class="flex items-center justify-between gap-3">
               <label
                 for="medical-history-toggle"
-                class="text-sm font-medium text-slate-700 dark:text-slate-300"
+                class="text-sm font-semibold text-slate-800 dark:text-slate-200"
               >
                 {{ t('symptom_form.medical_history_label') }}
               </label>
@@ -498,20 +504,21 @@ async function submit() {
                 aria-required="true"
                 :aria-invalid="!!errors.medical_history_details"
                 :class="[
-                  'w-full px-4 py-3 rounded-lg',
-                  'bg-white dark:bg-slate-900/60',
+                  'w-full px-4 py-3 rounded-xl',
+                  'bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm',
                   'text-slate-800 dark:text-slate-100',
                   'placeholder:text-slate-400 dark:placeholder:text-slate-500',
-                  'focus:ring-2 focus:ring-brand focus:outline-none',
+                  'transition-all duration-300 ease-out',
+                  'focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none',
                   errors.medical_history_details
-                    ? 'border-2 border-red-400 dark:border-red-500/70'
-                    : 'border border-slate-300 dark:border-slate-600'
+                    ? 'border border-rose-300 dark:border-red-500/70 ring-2 ring-rose-200/60'
+                    : 'border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80'
                 ]"
               />
               <p
                 v-if="errors.medical_history_details"
                 data-testid="error-medical-history-details"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1.5 text-xs font-medium text-rose-600 dark:text-red-400"
               >
                 {{ errors.medical_history_details }}
               </p>
@@ -519,15 +526,17 @@ async function submit() {
           </div>
 
           <div
-            class="rounded-xl p-3 sm:p-4
-                   bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm
-                   border border-white/60 dark:border-white/10
-                   ring-1 ring-slate-900/5 dark:ring-white/5"
+            class="rounded-2xl p-4 sm:p-5
+                   bg-white/60 dark:bg-slate-900/40 backdrop-blur-md
+                   border border-slate-200/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-white/5
+                   shadow-soft transition-all duration-300 ease-out
+                   hover:-translate-y-0.5 hover:shadow-soft-md"
           >
             <div class="flex items-center justify-between gap-3">
               <label
                 for="medication-toggle"
-                class="text-sm font-medium text-slate-700 dark:text-slate-300"
+                class="text-sm font-semibold text-slate-800 dark:text-slate-200"
               >
                 {{ t('symptom_form.medication_label') }}
               </label>
@@ -561,20 +570,21 @@ async function submit() {
                 aria-required="true"
                 :aria-invalid="!!errors.medication_details"
                 :class="[
-                  'w-full px-4 py-3 rounded-lg',
-                  'bg-white dark:bg-slate-900/60',
+                  'w-full px-4 py-3 rounded-xl',
+                  'bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm',
                   'text-slate-800 dark:text-slate-100',
                   'placeholder:text-slate-400 dark:placeholder:text-slate-500',
-                  'focus:ring-2 focus:ring-brand focus:outline-none',
+                  'transition-all duration-300 ease-out',
+                  'focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none',
                   errors.medication_details
-                    ? 'border-2 border-red-400 dark:border-red-500/70'
-                    : 'border border-slate-300 dark:border-slate-600'
+                    ? 'border border-rose-300 dark:border-red-500/70 ring-2 ring-rose-200/60'
+                    : 'border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80'
                 ]"
               />
               <p
                 v-if="errors.medication_details"
                 data-testid="error-medication-details"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1.5 text-xs font-medium text-rose-600 dark:text-red-400"
               >
                 {{ errors.medication_details }}
               </p>
@@ -583,7 +593,7 @@ async function submit() {
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
             {{ t('symptom_form.additional_info_label') }}
           </label>
           <textarea
@@ -591,17 +601,18 @@ async function submit() {
             data-testid="additional-info-input"
             rows="3"
             :placeholder="t('symptom_form.additional_info_placeholder')"
-            class="w-full px-4 py-3 rounded-lg resize-y
-                   bg-white dark:bg-slate-900/60
-                   border border-slate-300 dark:border-slate-600
+            class="w-full px-4 py-3 rounded-xl resize-y
+                   bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm
+                   border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80
                    text-slate-800 dark:text-slate-100
                    placeholder:text-slate-400 dark:placeholder:text-slate-500
-                   focus:ring-2 focus:ring-brand focus:outline-none"
+                   transition-all duration-300 ease-out
+                   focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none"
           ></textarea>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
             {{ t('symptom_form.attachments_label') }}
           </label>
 
@@ -610,19 +621,19 @@ async function submit() {
             @dragleave="onDragLeave"
             @drop="onDrop"
             :class="[
-              'relative rounded-xl border-2 border-dashed transition overflow-hidden',
-              'bg-white/70 dark:bg-slate-900/50 sm:bg-white/60 sm:dark:bg-slate-900/40 backdrop-blur-sm sm:backdrop-blur-md',
+              'relative rounded-2xl border-2 border-dashed transition-all duration-300 ease-out overflow-hidden',
+              'bg-white/60 dark:bg-slate-900/50 sm:bg-white/50 sm:dark:bg-slate-900/40 backdrop-blur-sm sm:backdrop-blur-md',
               isDragging
-                ? 'border-brand bg-brand/5 dark:bg-emerald-900/20'
-                : 'border-slate-300 dark:border-slate-600'
+                ? 'border-brand bg-brand/5 dark:bg-emerald-900/20 shadow-glow -translate-y-0.5'
+                : 'border-slate-300/70 dark:border-slate-600/70'
             ]"
           >
             <label
               v-if="!form.attachments.length"
               for="symptom-attachments"
               data-testid="upload-zone"
-              class="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-10 sm:py-8 text-center min-h-[140px] cursor-pointer rounded-xl
-                     hover:bg-brand/5 dark:hover:bg-emerald-900/20 transition"
+              class="flex flex-col items-center justify-center gap-2 px-4 sm:px-6 py-10 sm:py-8 text-center min-h-[140px] cursor-pointer rounded-2xl
+                     hover:bg-brand/5 dark:hover:bg-emerald-900/20 transition-all duration-300 ease-out"
             >
               <svg class="h-10 w-10 text-slate-400 dark:text-slate-500"
                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -649,11 +660,13 @@ async function submit() {
                   :key="att.id"
                   data-testid="attachment-item"
                   :data-name="att.name"
-                  class="relative rounded-xl overflow-hidden
+                  class="relative rounded-2xl overflow-hidden
                          bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
                          backdrop-blur-sm sm:backdrop-blur-md
-                         border border-white/60 dark:border-white/10
-                         ring-1 ring-slate-900/5 dark:ring-white/5"
+                         border border-slate-200/60 dark:border-white/10
+                         ring-1 ring-slate-900/5 dark:ring-white/5
+                         shadow-soft transition-all duration-300 ease-out
+                         hover:-translate-y-0.5 hover:shadow-soft-md"
                 >
                   <div class="aspect-square flex items-center justify-center bg-slate-50 dark:bg-slate-900/40">
                     <img
@@ -743,13 +756,14 @@ async function submit() {
                   :disabled="isAnalyzing"
                   data-testid="analyze-documents-button"
                   @click="analyzeDocuments"
-                  class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                  class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl
                          bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
-                         border border-white/60 dark:border-white/10
+                         border border-slate-200/60 dark:border-white/10
                          ring-1 ring-slate-900/5 dark:ring-emerald-400/15
                          text-sm font-semibold text-brand-dark dark:text-emerald-300
-                         shadow-sm hover:bg-brand/5 dark:hover:bg-emerald-900/20
-                         transition disabled:opacity-50 disabled:cursor-not-allowed"
+                         shadow-soft hover:bg-brand/5 dark:hover:bg-emerald-900/20
+                         hover:-translate-y-0.5 hover:shadow-soft-md
+                         transition-all duration-300 ease-out disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg
                     v-if="isAnalyzing"
@@ -789,11 +803,11 @@ async function submit() {
           <div
             v-if="documentSummary"
             data-testid="document-summary"
-            class="mt-3 rounded-xl p-3 sm:p-4
+            class="mt-3 rounded-2xl p-4 sm:p-5
                    bg-white/85 dark:bg-slate-800/60 backdrop-blur-md
-                   border border-white/60 dark:border-white/10
+                   border border-slate-200/60 dark:border-white/10
                    ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-                   text-sm text-slate-700 dark:text-slate-200"
+                   shadow-soft text-sm text-slate-700 dark:text-slate-200"
           >
             <div class="font-semibold mb-1 text-brand-dark dark:text-emerald-300">
               {{ t('symptom_form.document_summary_title') }}
@@ -807,12 +821,14 @@ async function submit() {
               type="button"
               data-testid="answers-saved-badge"
               @click="openQuestionsModal"
-              class="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-lg
+              class="mt-3 inline-flex items-center gap-2 px-3.5 py-2 rounded-xl
                      bg-emerald-50/80 dark:bg-emerald-900/30 backdrop-blur-md
                      border border-emerald-200/80 dark:border-emerald-700/40
-                     ring-1 ring-emerald-500/10
+                     ring-1 ring-emerald-500/10 shadow-soft
                      text-sm font-medium text-emerald-700 dark:text-emerald-300
-                     hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 transition"
+                     hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50
+                     hover:-translate-y-0.5 hover:shadow-soft-md
+                     transition-all duration-300 ease-out"
             >
               <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -823,11 +839,11 @@ async function submit() {
           </Transition>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
               {{ t('symptom_form.severity_label') }}
-              <span class="text-red-500 ms-1" aria-hidden="true">*</span>
+              <span class="text-rose-400 ms-1" aria-hidden="true">*</span>
             </label>
             <input
               v-model.number="form.severity"
@@ -837,13 +853,13 @@ async function submit() {
               data-testid="severity-input"
               class="touch-slider w-full accent-brand"
             />
-            <div class="text-sm text-slate-500 dark:text-slate-400 mt-1 tabular-nums">{{ form.severity }}</div>
+            <div class="text-sm font-semibold text-brand-dark dark:text-emerald-300 mt-1 tabular-nums">{{ form.severity }}</div>
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
               {{ t('symptom_form.body_area_label') }}
-              <span class="text-red-500 ms-1" aria-hidden="true">*</span>
+              <span class="text-rose-400 ms-1" aria-hidden="true">*</span>
             </label>
             <select
               v-model="form.body_area"
@@ -851,13 +867,14 @@ async function submit() {
               aria-required="true"
               :aria-invalid="!!errors.body_area"
               :class="[
-                'w-full px-4 py-3 rounded-lg',
-                'bg-white dark:bg-slate-900/60',
+                'w-full px-4 py-3 rounded-xl appearance-none',
+                'bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm',
                 'text-slate-800 dark:text-slate-100',
-                'focus:ring-2 focus:ring-brand focus:outline-none',
+                'transition-all duration-300 ease-out',
+                'focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none',
                 errors.body_area
-                  ? 'border-2 border-red-400 dark:border-red-500/70'
-                  : 'border border-slate-300 dark:border-slate-600'
+                  ? 'border border-rose-300 dark:border-red-500/70 ring-2 ring-rose-200/60'
+                  : 'border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80'
               ]"
             >
               <option value="" disabled>{{ t('symptom_form.body_area_placeholder') }}</option>
@@ -868,7 +885,7 @@ async function submit() {
             <p
               v-if="errors.body_area"
               data-testid="error-body-area"
-              class="mt-1 text-xs text-red-600 dark:text-red-400"
+              class="mt-1.5 text-xs font-medium text-rose-600 dark:text-red-400"
             >
               {{ errors.body_area }}
             </p>
@@ -876,9 +893,9 @@ async function submit() {
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+          <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
             {{ t('symptom_form.duration_label') }}
-            <span class="text-red-500 ms-1" aria-hidden="true">*</span>
+            <span class="text-rose-400 ms-1" aria-hidden="true">*</span>
           </label>
           <input
             v-model.number="form.duration_hours"
@@ -888,19 +905,20 @@ async function submit() {
             aria-required="true"
             :aria-invalid="!!errors.duration_hours"
             :class="[
-              'w-full px-4 py-3 rounded-lg',
-              'bg-white dark:bg-slate-900/60',
+              'w-full px-4 py-3 rounded-xl',
+              'bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm',
               'text-slate-800 dark:text-slate-100',
-              'focus:ring-2 focus:ring-brand focus:outline-none',
+              'transition-all duration-300 ease-out',
+              'focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none',
               errors.duration_hours
-                ? 'border-2 border-red-400 dark:border-red-500/70'
-                : 'border border-slate-300 dark:border-slate-600'
+                ? 'border border-rose-300 dark:border-red-500/70 ring-2 ring-rose-200/60'
+                : 'border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80'
             ]"
           />
           <p
             v-if="errors.duration_hours"
             data-testid="error-duration"
-            class="mt-1 text-xs text-red-600 dark:text-red-400"
+            class="mt-1.5 text-xs font-medium text-rose-600 dark:text-red-400"
           >
             {{ errors.duration_hours }}
           </p>
@@ -910,12 +928,12 @@ async function submit() {
           v-if="apiErrorMessages.length"
           data-testid="submit-error"
           role="alert"
-          class="rounded-xl p-4 text-sm
-                 bg-red-50 dark:bg-red-950/40
-                 border border-red-200 dark:border-red-700/40
-                 text-red-800 dark:text-red-200"
+          class="rounded-2xl p-4 text-sm
+                 bg-rose-50/90 dark:bg-red-950/40 backdrop-blur-sm
+                 border border-rose-200/80 dark:border-red-700/40
+                 shadow-soft text-rose-800 dark:text-red-200"
         >
-          <p class="font-medium mb-1">{{ t('symptom_form.submit_error_title') }}</p>
+          <p class="font-semibold mb-1">{{ t('symptom_form.submit_error_title') }}</p>
           <ul class="list-disc ps-5 space-y-0.5">
             <li v-for="(msg, i) in apiErrorMessages" :key="i">{{ msg }}</li>
           </ul>
@@ -924,8 +942,12 @@ async function submit() {
         <button
           type="submit"
           :disabled="symptomStore.submitting"
-          class="w-full py-3 rounded-lg bg-brand text-white font-semibold
-                 shadow-md hover:bg-brand-dark transition disabled:opacity-50"
+          class="w-full py-3.5 rounded-xl font-semibold text-white
+                 bg-gradient-to-br from-brand to-brand-dark
+                 shadow-cta hover:-translate-y-0.5 hover:shadow-glow
+                 active:translate-y-0 active:shadow-cta
+                 transition-all duration-300 ease-out
+                 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
         >
           {{ symptomStore.submitting ? t('symptom_form.analyzing') : t('symptom_form.submit') }}
         </button>
@@ -936,23 +958,24 @@ async function submit() {
       v-else
       key="result"
       data-testid="result-card"
-      class="rounded-2xl p-4 sm:p-7 space-y-5
+      class="rounded-3xl p-6 md:p-8 space-y-6
              bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
              sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
-             border border-white/60 dark:border-white/10
+             border border-slate-200/60 dark:border-white/10
              ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-             shadow-glass dark:shadow-glass-dk"
+             shadow-soft-lg dark:shadow-glass-dk
+             transition-all duration-300 ease-out"
     >
       <div class="flex items-center gap-3">
-        <div class="inline-flex h-10 w-10 items-center justify-center
-                    rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700
-                    text-white shadow-md shadow-brand/30">
+        <div class="inline-flex h-11 w-11 items-center justify-center
+                    rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700
+                    text-white shadow-glow ring-1 ring-white/20">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20 6 9 17l-5-5"/>
           </svg>
         </div>
-        <h2 class="text-lg font-semibold text-slate-800 dark:text-slate-100">
+        <h2 class="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
           {{ t('symptom_form.result_title') }}
         </h2>
       </div>
@@ -960,10 +983,10 @@ async function submit() {
       <div
         v-if="symptomStore.result.red_flag"
         data-testid="result-red-flag"
-        class="rounded-xl p-4 font-medium
-               bg-red-50 dark:bg-red-950/40
-               border border-red-200 dark:border-red-700/40
-               text-red-800 dark:text-red-200"
+        class="rounded-2xl p-4 font-medium
+               bg-rose-50/90 dark:bg-red-950/40 backdrop-blur-sm
+               border border-rose-200/80 dark:border-red-700/40
+               shadow-soft text-rose-800 dark:text-red-200"
       >
         {{ t('symptom_form.red_flag_warning') }}
       </div>
@@ -971,17 +994,19 @@ async function submit() {
       <div
         v-if="symptomStore.result.specialty"
         data-testid="result-specialty"
-        class="rounded-xl p-4 bg-brand-soft dark:bg-emerald-900/30 dark:border dark:border-emerald-700/30"
+        class="rounded-2xl p-5 shadow-soft
+               bg-brand-soft dark:bg-emerald-900/30
+               border border-emerald-200/60 dark:border-emerald-700/30"
       >
-        <div class="text-sm text-slate-500 dark:text-slate-400">{{ t('symptom_form.recommended_specialty') }}</div>
-        <div class="text-lg font-semibold text-brand-dark dark:text-emerald-300">
+        <div class="text-[13px] font-semibold tracking-wide text-slate-500 dark:text-slate-400">{{ t('symptom_form.recommended_specialty') }}</div>
+        <div class="text-lg font-bold text-brand-dark dark:text-emerald-300 mt-0.5">
           {{ symptomStore.result.specialty.name }}
         </div>
       </div>
 
       <div
         data-testid="result-first-aid"
-        class="rounded-xl p-4 backdrop-blur-md
+        class="rounded-2xl p-5 backdrop-blur-md shadow-soft
                bg-amber-50/80 dark:bg-amber-950/30
                border border-amber-200/80 dark:border-amber-800/40"
       >
@@ -1016,11 +1041,13 @@ async function submit() {
             v-for="doc in symptomStore.result.doctors"
             :key="doc.id"
             data-testid="result-doctor"
-            class="rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3
+            class="rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-3
                    bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
                    backdrop-blur-sm sm:backdrop-blur-md
-                   border border-white/60 dark:border-white/10
-                   ring-1 ring-slate-900/5 dark:ring-white/5"
+                   border border-slate-200/60 dark:border-white/10
+                   ring-1 ring-slate-900/5 dark:ring-white/5
+                   shadow-soft transition-all duration-300 ease-out
+                   hover:-translate-y-0.5 hover:shadow-soft-md"
           >
             <div class="min-w-0">
               <div class="font-semibold text-slate-900 dark:text-slate-100 truncate">{{ doc.name }}</div>
@@ -1039,8 +1066,11 @@ async function submit() {
         type="button"
         data-testid="new-assessment-button"
         @click="startNewAssessment"
-        class="w-full py-3 rounded-lg bg-brand text-white font-semibold
-               shadow-md hover:bg-brand-dark transition"
+        class="w-full py-3.5 rounded-xl font-semibold text-white
+               bg-gradient-to-br from-brand to-brand-dark
+               shadow-cta hover:-translate-y-0.5 hover:shadow-glow
+               active:translate-y-0 active:shadow-cta
+               transition-all duration-300 ease-out"
       >
         {{ t('symptom_form.new_assessment') }}
       </button>
@@ -1054,7 +1084,7 @@ async function submit() {
         v-if="showQuestionsModal"
         data-testid="questions-modal"
         class="fixed inset-0 z-50 flex items-center justify-center p-4
-               bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-sm"
+               bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-md"
         @click.self="closeQuestionsModal"
       >
         <Transition name="modal-pop" appear>
@@ -1062,17 +1092,17 @@ async function submit() {
             v-if="showQuestionsModal"
             role="dialog"
             aria-modal="true"
-            class="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl p-5 sm:p-7 space-y-5
-                   bg-white/90 dark:bg-slate-800/70 backdrop-blur-xl
-                   border border-white/60 dark:border-white/10
+            class="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-3xl p-6 sm:p-8 space-y-6
+                   bg-white/85 dark:bg-slate-800/70 backdrop-blur-2xl
+                   border border-slate-200/60 dark:border-white/10
                    ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-                   shadow-glass dark:shadow-glass-dk"
+                   shadow-soft-lg dark:shadow-glass-dk"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div class="inline-flex h-10 w-10 items-center justify-center
-                            rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700
-                            text-white shadow-md shadow-brand/30">
+                <div class="inline-flex h-11 w-11 items-center justify-center
+                            rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700
+                            text-white shadow-glow ring-1 ring-white/20">
                   <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -1080,7 +1110,7 @@ async function submit() {
                     <circle cx="12" cy="12" r="10"/>
                   </svg>
                 </div>
-                <h2 class="text-base sm:text-lg font-semibold text-slate-800 dark:text-slate-100">
+                <h2 class="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
                   {{ t('symptom_form.questions_modal_title') }}
                 </h2>
               </div>
@@ -1090,11 +1120,12 @@ async function submit() {
                 :title="t('symptom_form.modal_close')"
                 data-testid="questions-modal-close"
                 @click="closeQuestionsModal"
-                class="inline-flex h-8 w-8 items-center justify-center rounded-full shrink-0
-                       bg-white/85 dark:bg-slate-900/70 backdrop-blur
-                       border border-white/70 dark:border-white/10
+                class="inline-flex h-9 w-9 items-center justify-center rounded-full shrink-0
+                       bg-white/85 dark:bg-slate-900/70 backdrop-blur shadow-soft
+                       border border-slate-200/60 dark:border-white/10
                        text-slate-600 dark:text-slate-300
-                       hover:bg-slate-100 dark:hover:bg-slate-700/60 transition"
+                       hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-700/60
+                       transition-all duration-300 ease-out"
               >
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -1105,11 +1136,11 @@ async function submit() {
 
             <div
               v-if="documentSummary"
-              class="rounded-xl p-3 sm:p-4
+              class="rounded-2xl p-4 sm:p-5
                      bg-white/70 dark:bg-slate-900/40 backdrop-blur-sm
-                     border border-white/60 dark:border-white/10
+                     border border-slate-200/60 dark:border-white/10
                      ring-1 ring-slate-900/5 dark:ring-white/5
-                     text-sm text-slate-700 dark:text-slate-200"
+                     shadow-soft text-sm text-slate-700 dark:text-slate-200"
             >
               <div class="font-semibold mb-1 text-brand-dark dark:text-emerald-300">
                 {{ t('symptom_form.document_summary_title') }}
@@ -1129,7 +1160,7 @@ async function submit() {
               >
                 <label
                   :for="`document-question-${i}`"
-                  class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1"
+                  class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2"
                 >
                   {{ question }}
                 </label>
@@ -1139,12 +1170,13 @@ async function submit() {
                   type="text"
                   data-testid="document-question-answer"
                   :placeholder="t('symptom_form.document_questions_answer_placeholder')"
-                  class="w-full px-4 py-3 rounded-lg
-                         bg-white dark:bg-slate-900/60
-                         border border-slate-300 dark:border-slate-600
+                  class="w-full px-4 py-3 rounded-xl
+                         bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm
+                         border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80
                          text-slate-800 dark:text-slate-100
                          placeholder:text-slate-400 dark:placeholder:text-slate-500
-                         focus:ring-2 focus:ring-brand focus:outline-none"
+                         transition-all duration-300 ease-out
+                         focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none"
                 />
               </div>
             </div>
@@ -1153,8 +1185,11 @@ async function submit() {
               type="button"
               data-testid="questions-modal-confirm"
               @click="confirmAnswers"
-              class="w-full py-3 rounded-lg bg-brand text-white font-semibold
-                     shadow-md hover:bg-brand-dark transition"
+              class="w-full py-3.5 rounded-xl font-semibold text-white
+                     bg-gradient-to-br from-brand to-brand-dark
+                     shadow-cta hover:-translate-y-0.5 hover:shadow-glow
+                     active:translate-y-0 active:shadow-cta
+                     transition-all duration-300 ease-out"
             >
               {{ t('symptom_form.questions_modal_confirm') }}
             </button>

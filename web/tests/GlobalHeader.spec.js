@@ -16,12 +16,12 @@ async function mountHeader(path) {
 
 describe('GlobalHeader', () => {
   describe('on the landing route ("/")', () => {
-    it('renders the brand "هلثینو" inside the SVG logotype', async () => {
+    it('renders the brand "هلثینو" as an HTML wordmark beside the logo icon', async () => {
       const wrapper = await mountHeader('/')
       expect(wrapper.text()).toContain(BRAND)
-      const text = wrapper.find('[data-testid="brand-logo"] text')
-      expect(text.exists()).toBe(true)
-      expect(text.text()).toBe(BRAND)
+      const wordmark = wrapper.find('[data-testid="brand-wordmark"]')
+      expect(wordmark.exists()).toBe(true)
+      expect(wordmark.text()).toBe(BRAND)
     })
 
     it('renders the tagline in the center slot', async () => {
@@ -65,10 +65,10 @@ describe('GlobalHeader', () => {
   })
 
   describe('on the symptoms route ("/symptoms")', () => {
-    it('still renders the brand "هلثینو" via the SVG logotype', async () => {
+    it('still renders the brand "هلثینو" via the HTML wordmark', async () => {
       const wrapper = await mountHeader('/symptoms')
       expect(wrapper.text()).toContain(BRAND)
-      expect(wrapper.find('[data-testid="brand-logo"] text').text()).toBe(BRAND)
+      expect(wrapper.find('[data-testid="brand-wordmark"]').text()).toBe(BRAND)
     })
 
     it('still renders the tagline in the center', async () => {
@@ -103,20 +103,18 @@ describe('GlobalHeader', () => {
     })
   })
 
-  describe('SVG typography logo', () => {
-    it('contains a roof outline (chevron path) above the wordmark', async () => {
+  describe('brand mark (minimalist shield + pulse icon)', () => {
+    it('renders the medical icon from at least two stroked SVG paths (shield + pulse)', async () => {
       const wrapper = await mountHeader('/symptoms')
       const svg = wrapper.find('[data-testid="brand-logo"]')
-      const roof = svg.find('path')
-      expect(roof.exists()).toBe(true)
-      expect(roof.attributes('d')).toMatch(/^M\s*8\s+14\s+L\s*50\s+3\s+L\s*92\s+14$/)
-      expect(roof.attributes('stroke')).toBe('currentColor')
+      const paths = svg.findAll('path')
+      expect(paths.length).toBeGreaterThanOrEqual(2)
+      paths.forEach((p) => expect(p.attributes('stroke')).toBe('currentColor'))
     })
 
-    it('text and stroke both inherit the link color via currentColor', async () => {
+    it('icon strokes inherit the link color via currentColor', async () => {
       const wrapper = await mountHeader('/symptoms')
       const svg = wrapper.find('[data-testid="brand-logo"]')
-      expect(svg.find('text').attributes('fill')).toBe('currentColor')
       expect(svg.find('path').attributes('stroke')).toBe('currentColor')
     })
 

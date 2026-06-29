@@ -75,8 +75,8 @@ describe('Responsive @ 375px — GlobalHeader', () => {
     expect(brand.classes()).toContain('shrink-0')
 
     const logo = wrapper.find('[data-testid="brand-logo"]')
-    expect(logo.classes()).toContain('h-7')
-    expect(logo.classes()).toContain('sm:h-9')
+    expect(logo.classes()).toContain('h-5')
+    expect(logo.classes()).toContain('sm:h-[22px]')
   })
 
   it('uses tighter padding and smaller gaps on mobile so the right cluster fits', async () => {

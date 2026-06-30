@@ -45,18 +45,30 @@ onMounted(async () => {
     <!-- Soft brand-emerald glow drifting in from the top-right -->
     <div
       class="absolute -top-40 -right-32 h-[34rem] w-[34rem] rounded-full
-             bg-emerald-200/30 dark:bg-emerald-500/10 blur-[120px]"
+             bg-emerald-200/30 dark:bg-emerald-500/10 blur-[120px]
+             will-change-transform animate-aura-drift"
     ></div>
     <!-- Gentle teal glow anchored in the bottom-left -->
     <div
       class="absolute -bottom-48 -left-40 h-[36rem] w-[36rem] rounded-full
-             bg-teal-200/20 dark:bg-teal-500/10 blur-[120px]"
+             bg-teal-200/20 dark:bg-teal-500/10 blur-[120px]
+             will-change-transform animate-aura-drift-alt"
     ></div>
     <!-- Faint indigo accent floating through the centre for depth -->
     <div
       class="absolute top-1/3 left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full
-             bg-indigo-200/15 dark:bg-indigo-500/[0.07] blur-[120px]"
+             bg-indigo-200/15 dark:bg-indigo-500/[0.07] blur-[120px]
+             will-change-transform animate-aura-breathe"
     ></div>
+
+    <!--
+      Luxury ECG pulse-wave watermark. Painted above the moving glows so the
+      soft emerald/teal light passes behind the medical waves for a premium
+      sense of depth. The pattern carries its own composited mask (see
+      .ecg-pattern in style.css): crisp along the top + side edges, melting
+      away through the centre and bottom so the content card stays readable.
+    -->
+    <div class="absolute inset-0 ecg-pattern"></div>
   </div>
 
   <RouterView />

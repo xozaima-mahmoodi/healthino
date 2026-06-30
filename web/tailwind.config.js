@@ -35,6 +35,29 @@ export default {
       },
       transitionTimingFunction: {
         bounceish: 'cubic-bezier(.2,.8,.2,1)'
+      },
+      keyframes: {
+        // Slow, organic drift for the ambient mesh glows. Each blob pairs a
+        // gentle translate with a subtle scale + opacity breathe so the light
+        // feels alive and cinematic rather than mechanically looped.
+        'aura-drift': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1)', opacity: '0.9' },
+          '50%':      { transform: 'translate3d(4%, -3%, 0) scale(1.08)', opacity: '1' }
+        },
+        'aura-drift-alt': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0) scale(1.05)', opacity: '0.85' },
+          '50%':      { transform: 'translate3d(-5%, 4%, 0) scale(0.95)', opacity: '1' }
+        },
+        'aura-breathe': {
+          '0%, 100%': { transform: 'translate3d(-50%, 0, 0) scale(1)', opacity: '0.7' },
+          '50%':      { transform: 'translate3d(-50%, -4%, 0) scale(1.12)', opacity: '0.95' }
+        }
+      },
+      animation: {
+        // Long, offset durations keep the three glows perpetually out of sync.
+        'aura-drift':     'aura-drift 22s ease-in-out infinite',
+        'aura-drift-alt': 'aura-drift-alt 28s ease-in-out infinite',
+        'aura-breathe':   'aura-breathe 19s ease-in-out infinite'
       }
     }
   },

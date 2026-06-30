@@ -53,13 +53,42 @@
     background-color: transparent;
   }
 
-  /* Faint dot grid overlay */
-  .dot-grid {
-    background-image: radial-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px);
-    background-size: 22px 22px;
+  /* Luxury ECG / pulse-wave watermark. A single clean medical heartbeat
+     tile (flat baseline → P wave → QRS spike → T wave) repeats across the
+     viewport as an elegant inline-SVG overlay. The stroke is a soft slate at
+     low opacity so it reads as a high-end watermark, never a heavy grid.
+
+     A composited mask fades the pattern out toward the centre and the bottom
+     so the waves stay beautiful along the top and side edges but melt away
+     behind the main content card, keeping everything perfectly readable. */
+  .ecg-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='280'%20height='80'%20viewBox='0%200%20280%2080'%3E%3Cpath%20d='M0%2040%20H70%20l5%200%20l4%20-7%20l4%207%20H110%20l5%200%20l3%206%20l4%20-30%20l4%2038%20l3%20-14%20H170%20l8%200%20l7%20-9%20l7%209%20H280'%20fill='none'%20stroke='%2394a3b8'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'%20stroke-opacity='0.5'/%3E%3C/svg%3E");
+    background-size: 280px 80px;
+    background-repeat: repeat;
+
+    /* Visible on the top + side edges, faded in the centre and toward the
+       bottom. Two masks intersect: a radial (transparent core → opaque rim)
+       and a vertical fade (opaque top → transparent bottom). */
+    -webkit-mask-image:
+      radial-gradient(ellipse 80% 60% at 50% 38%, transparent 0%, transparent 38%, #000 88%),
+      linear-gradient(to bottom, #000 0%, #000 35%, transparent 92%);
+    -webkit-mask-composite: source-in;
+            mask-image:
+      radial-gradient(ellipse 80% 60% at 50% 38%, transparent 0%, transparent 38%, #000 88%),
+      linear-gradient(to bottom, #000 0%, #000 35%, transparent 92%);
+            mask-composite: intersect;
   }
-  html.dark .dot-grid {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  html.dark .ecg-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='280'%20height='80'%20viewBox='0%200%20280%2080'%3E%3Cpath%20d='M0%2040%20H70%20l5%200%20l4%20-7%20l4%207%20H110%20l5%200%20l3%206%20l4%20-30%20l4%2038%20l3%20-14%20H170%20l8%200%20l7%20-9%20l7%209%20H280'%20fill='none'%20stroke='%23cbd5e1'%20stroke-width='1.5'%20stroke-linecap='round'%20stroke-linejoin='round'%20stroke-opacity='0.16'/%3E%3C/svg%3E");
+  }
+
+  /* Respect users who prefer reduced motion: hold the ambient glows still. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-aura-drift,
+    .animate-aura-drift-alt,
+    .animate-aura-breathe {
+      animation: none !important;
+    }
   }
 
   /* Touch-friendly range slider — 24px thumb so it stays tappable on mobile. */

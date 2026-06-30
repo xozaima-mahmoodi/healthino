@@ -53,10 +53,10 @@ onMounted(loadRecent)
 
     <section class="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
       <div class="max-w-2xl mx-auto">
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+        <h1 class="text-center mx-auto text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
           {{ t('doctor.title') }}
         </h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">
+        <p class="text-center mx-auto text-sm text-slate-500 dark:text-slate-400 mb-6">
           {{ t('doctor.subtitle') }}
         </p>
 

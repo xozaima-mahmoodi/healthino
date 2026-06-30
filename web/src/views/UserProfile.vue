@@ -209,10 +209,10 @@ onMounted(() => {
     <section class="max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-14">
       <div class="max-w-xl mx-auto space-y-6">
         <div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
+          <h1 class="text-center mx-auto text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
             {{ t('profile.title') }}
           </h1>
-          <p class="text-sm text-slate-500 dark:text-slate-400">
+          <p class="text-center mx-auto text-sm text-slate-500 dark:text-slate-400">
             {{ t('profile.subtitle') }}
           </p>
         </div>

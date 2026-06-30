@@ -19,8 +19,8 @@ onMounted(() => {
 
     <section class="max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-14">
       <div class="max-w-2xl mx-auto">
-        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-8">
-          {{ t('symptom_form.title') }}
+        <h1 class="text-center mx-auto w-full text-3xl sm:text-4xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-8">
+          {{ symptomStore.result ? t('symptom_form.results_title') : t('symptom_form.title') }}
         </h1>
 
         <SymptomForm />

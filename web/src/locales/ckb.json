@@ -124,6 +124,7 @@
   },
   "symptom_form": {
     "title": "پشکنینی نیشانەکان",
+    "results_title": "شیکاری و ئەنجامی هەڵسەنگاندن",
     "symptoms_label": "نیشانەی سەرەکی خۆت هەڵبژێرە",
     "symptoms_select_placeholder": "یەکێک هەڵبژێرە…",
     "additional_info_label": "ئەگەر شتی زیادە هەیە لێرە بینووسە",

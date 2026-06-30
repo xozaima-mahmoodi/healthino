@@ -124,6 +124,7 @@
   },
   "symptom_form": {
     "title": "بررسی علائم",
+    "results_title": "تحلیل و نتیجه ارزیابی",
     "symptoms_label": "علامت اصلی خود را انتخاب کنید",
     "symptoms_select_placeholder": "یکی را انتخاب کنید…",
     "additional_info_label": "اگر مورد اضافه ای هست در اینجا ذکر کنید",

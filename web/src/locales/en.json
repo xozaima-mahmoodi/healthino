@@ -124,6 +124,7 @@
   },
   "symptom_form": {
     "title": "Symptom check",
+    "results_title": "Analysis & assessment result",
     "symptoms_label": "Choose your main symptom",
     "symptoms_select_placeholder": "Select one…",
     "additional_info_label": "Add anything extra here",

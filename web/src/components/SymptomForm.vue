@@ -354,6 +354,14 @@ const firstAidItems = computed(() => {
   ]
 })
 
+// Flags a care step as critical (emergency escalation) so it gets the crimson
+// alert treatment and a pulsing dot instead of the calm amber styling.
+const CRITICAL_AID_PATTERNS = ['اورژانس', 'تشدید علائم', 'emergency', 'worsen']
+function isCriticalAidItem(item) {
+  const text = String(item || '').toLowerCase()
+  return CRITICAL_AID_PATTERNS.some(p => text.includes(p.toLowerCase()))
+}
+
 onBeforeUnmount(() => {
   for (const a of form.attachments) {
     if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
@@ -1121,15 +1129,40 @@ async function submit() {
             {{ t('symptom_form.first_aid.title') }}
           </h3>
         </div>
-        <ul class="list-disc ps-5 space-y-1 text-sm text-amber-900/90 dark:text-amber-100/90">
+        <TransitionGroup tag="ul" name="aid-stagger" class="list-none m-0 p-0" appear>
           <li
             v-for="(item, i) in firstAidItems"
-            :key="i"
+            :key="`${i}-${item}`"
             data-testid="first-aid-item"
+            :data-critical="isCriticalAidItem(item) ? 'true' : 'false'"
+            :style="{ '--i': i }"
+            :class="[
+              'group flex items-start gap-3 rounded-xl p-4 mb-3 backdrop-blur-sm border transition-all duration-200',
+              isCriticalAidItem(item)
+                ? 'bg-rose-50/50 dark:bg-rose-950/30 border-rose-200/60 dark:border-rose-800/40 hover:bg-rose-50/80 dark:hover:bg-rose-950/45'
+                : 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/50 dark:border-amber-800/30 hover:bg-amber-50/80 dark:hover:bg-amber-950/40'
+            ]"
           >
-            {{ item }}
+            <span class="mt-1.5 shrink-0" aria-hidden="true">
+              <span
+                v-if="isCriticalAidItem(item)"
+                class="block h-2 w-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_2px_rgba(244,63,94,0.6)]"
+              ></span>
+              <span
+                v-else
+                class="block h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_6px_1px_rgba(251,191,36,0.45)]"
+              ></span>
+            </span>
+            <span
+              class="text-sm leading-relaxed"
+              :class="isCriticalAidItem(item)
+                ? 'font-medium text-rose-900/90 dark:text-rose-100/90'
+                : 'text-amber-900/90 dark:text-amber-100/90'"
+            >
+              {{ item }}
+            </span>
           </li>
-        </ul>
+        </TransitionGroup>
       </div>
 
       <div v-if="symptomStore.result.doctors?.length" class="space-y-3">
@@ -1562,6 +1595,27 @@ async function submit() {
 .triage-step-text-enter-from,
 .triage-step-text-leave-to {
   opacity: 0;
+}
+
+/* Staggered slide-up reveal for the first-aid priority cards. The per-item
+   delay rides a --i custom property so it only affects the entrance and never
+   the card's own hover transition. */
+.aid-stagger-enter-active {
+  transition: opacity 400ms ease, transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 90ms);
+}
+.aid-stagger-enter-from {
+  opacity: 0;
+  transform: translateY(14px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .aid-stagger-enter-active {
+    transition: opacity 300ms ease;
+    transition-delay: 0ms;
+  }
+  .aid-stagger-enter-from {
+    transform: none;
+  }
 }
 
 /* Slowly sweeping radar core for the vortex feel */

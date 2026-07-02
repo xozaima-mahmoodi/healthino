@@ -1388,7 +1388,7 @@ async function submit() {
         <div
           v-if="showDoctorsList"
           data-testid="triage-action-bar"
-          class="absolute top-4 start-4 z-10 flex items-center gap-2"
+          class="absolute top-4 end-4 z-10 flex items-center gap-2"
         >
           <button
             type="button"

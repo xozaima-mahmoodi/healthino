@@ -314,6 +314,28 @@ function startNewAssessment() {
   symptomStore.reset()
 }
 
+// Derives the triage urgency tier from the result for the premium status badge.
+const triageUrgency = computed(() => {
+  const r = symptomStore.result
+  if (!r) return null
+  const isEmergency = !!r.red_flag || r.specialty?.slug === 'emergency'
+  return isEmergency
+    ? {
+        key: 'emergency',
+        label: t('symptom_form.urgency_emergency'),
+        dot: 'bg-rose-500',
+        text: 'text-rose-700 dark:text-rose-300',
+        chip: 'bg-rose-50/70 dark:bg-rose-950/40 border-rose-200/70 dark:border-rose-800/50'
+      }
+    : {
+        key: 'routine',
+        label: t('symptom_form.urgency_routine'),
+        dot: 'bg-emerald-500',
+        text: 'text-emerald-700 dark:text-emerald-300',
+        chip: 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-800/50'
+      }
+})
+
 const firstAidItems = computed(() => {
   const fromApi = symptomStore.result?.first_aid
   if (Array.isArray(fromApi) && fromApi.length) return fromApi
@@ -1076,28 +1098,81 @@ async function submit() {
       </div>
 
       <div v-if="symptomStore.result.doctors?.length" class="space-y-3">
-        <div class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('symptom_form.recommended_doctors') }}</div>
-        <ul class="space-y-2">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('symptom_form.recommended_doctors') }}</div>
+
+          <!-- Triage urgency badge with pulsating status dot -->
+          <div
+            v-if="triageUrgency"
+            data-testid="triage-urgency-badge"
+            :class="[
+              'inline-flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-md border shadow-sm',
+              triageUrgency.chip
+            ]"
+          >
+            <span class="relative flex h-2 w-2">
+              <span
+                :class="['absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping', triageUrgency.dot]"
+              ></span>
+              <span :class="['relative inline-flex h-2 w-2 rounded-full', triageUrgency.dot]"></span>
+            </span>
+            <span :class="['text-xs font-semibold tracking-wide', triageUrgency.text]">
+              {{ t('symptom_form.urgency_label') }}: {{ triageUrgency.label }}
+            </span>
+          </div>
+        </div>
+
+        <ul class="space-y-2.5">
           <li
             v-for="doc in symptomStore.result.doctors"
             :key="doc.id"
             data-testid="result-doctor"
-            class="rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-3
-                   bg-white/85 dark:bg-slate-800/60 sm:bg-white/80 sm:dark:bg-slate-800/50
-                   backdrop-blur-sm sm:backdrop-blur-md
-                   border border-slate-200/60 dark:border-white/10
-                   ring-1 ring-slate-900/5 dark:ring-white/5
-                   shadow-soft transition-all duration-300 ease-out
-                   hover:-translate-y-0.5 hover:shadow-soft-md"
+            class="group flex items-center justify-between gap-4 rounded-2xl p-4 sm:p-5
+                   bg-white/60 dark:bg-slate-800/50 backdrop-blur-md
+                   border border-white/40 dark:border-white/10
+                   shadow-sm transition-all duration-300 ease-out
+                   hover:-translate-y-1 hover:shadow-lg
+                   hover:border-emerald-200/50 dark:hover:border-emerald-400/25"
           >
-            <div class="min-w-0">
-              <div class="font-semibold text-slate-900 dark:text-slate-100 truncate">{{ doc.name }}</div>
-              <div class="text-sm text-slate-500 dark:text-slate-400">
-                {{ doc.experience_years }} {{ t('symptom_form.experience_years') }}
+            <div class="flex items-center gap-3 min-w-0">
+              <div
+                aria-hidden="true"
+                class="hidden sm:inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl
+                       bg-gradient-to-br from-emerald-500 to-emerald-700 text-white
+                       font-bold text-lg shadow-glow ring-1 ring-white/20
+                       transition-transform duration-300 ease-out group-hover:scale-105"
+              >
+                {{ doc.name.charAt(0) }}
+              </div>
+              <div class="min-w-0">
+                <div class="font-semibold tracking-tight text-slate-800 dark:text-slate-100 truncate">
+                  {{ doc.name }}
+                </div>
+                <div class="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2"/>
+                    <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                  </svg>
+                  <span class="tabular-nums font-medium text-slate-600 dark:text-slate-300">{{ doc.experience_years }}</span>
+                  <span>{{ t('symptom_form.experience_years') }}</span>
+                </div>
               </div>
             </div>
-            <div class="text-sm shrink-0">
-              <span class="font-semibold text-amber-500 dark:text-amber-400">★ {{ doc.rating.toFixed(1) }}</span>
+
+            <div
+              :aria-label="`${t('symptom_form.rating')}: ${doc.rating.toFixed(1)}`"
+              class="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1
+                     bg-amber-50/70 dark:bg-amber-950/30 backdrop-blur-sm
+                     border border-amber-200/60 dark:border-amber-800/40"
+            >
+              <svg class="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" viewBox="0 0 24 24"
+                   fill="currentColor" stroke="none" aria-hidden="true">
+                <path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.77l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94z"/>
+              </svg>
+              <span class="text-sm font-semibold tabular-nums tracking-tight text-slate-700 dark:text-slate-200">
+                {{ doc.rating.toFixed(1) }}
+              </span>
             </div>
           </li>
         </ul>

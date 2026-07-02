@@ -174,6 +174,9 @@
     "red_flag_warning": "هشدار: علائم اورژانسی! لطفاً فوراً به اورژانس مراجعه کنید.",
     "recommended_specialty": "تخصص پیشنهادی",
     "recommended_doctors": "پزشکان پیشنهادی",
+    "urgency_label": "وضعیت",
+    "urgency_emergency": "نیازمند مراجعه فوری به اورژانس",
+    "urgency_routine": "نیازمند بررسی توسط پزشک",
     "experience_years": "سال تجربه",
     "rating": "امتیاز",
     "validation": {

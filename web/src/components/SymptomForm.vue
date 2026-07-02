@@ -314,6 +314,14 @@ function startNewAssessment() {
   symptomStore.reset()
 }
 
+// Live context meter for the free-text field: counts words and flags when the
+// user has provided enough detail so the micro-indicator can shift amber -> emerald.
+const additionalInfoWordCount = computed(() => {
+  const trimmed = form.additionalInfo.trim()
+  return trimmed ? trimmed.split(/\s+/).length : 0
+})
+const hasEnoughContext = computed(() => additionalInfoWordCount.value >= 3)
+
 // Derives the triage urgency tier from the result for the premium status badge.
 const triageUrgency = computed(() => {
   const r = symptomStore.result
@@ -656,21 +664,42 @@ async function submit() {
         </div>
 
         <div>
-          <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300 mb-2">
-            {{ t('symptom_form.additional_info_label') }}
-          </label>
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <label class="block text-[13px] font-semibold tracking-wide text-slate-700 dark:text-slate-300">
+              {{ t('symptom_form.additional_info_label') }}
+            </label>
+
+            <!-- Smart context micro-indicator: amber until enough detail, then emerald -->
+            <span
+              data-testid="context-indicator"
+              :title="hasEnoughContext ? t('symptom_form.context_hint_good') : t('symptom_form.context_hint_more')"
+              class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1
+                     bg-slate-100/60 dark:bg-slate-800/50 backdrop-blur-sm
+                     border border-slate-200/60 dark:border-white/10
+                     text-[11px] font-medium tracking-wide text-slate-500 dark:text-slate-400
+                     transition-all duration-300 ease-in-out"
+            >
+              <span
+                class="h-2 w-2 rounded-full transition-all duration-300 ease-in-out"
+                :class="hasEnoughContext
+                  ? 'bg-emerald-500 shadow-[0_0_8px_2px_rgba(16,185,129,0.6)]'
+                  : 'bg-amber-400 shadow-[0_0_7px_1px_rgba(251,191,36,0.5)]'"
+              ></span>
+              <span class="tabular-nums">{{ additionalInfoWordCount }} {{ t('symptom_form.context_words') }}</span>
+            </span>
+          </div>
           <textarea
             v-model="form.additionalInfo"
             data-testid="additional-info-input"
             rows="3"
             :placeholder="t('symptom_form.additional_info_placeholder')"
             class="w-full px-4 py-3 rounded-xl resize-y
-                   bg-white/70 dark:bg-slate-900/50 backdrop-blur-sm shadow-sm
+                   bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm shadow-sm
                    border border-slate-200/70 dark:border-slate-700/60 hover:border-slate-300/80
                    text-slate-800 dark:text-slate-100
                    placeholder:text-slate-400 dark:placeholder:text-slate-500
-                   transition-all duration-300 ease-out
-                   focus:ring-4 focus:ring-brand/15 focus:border-brand/50 focus:outline-none"
+                   transition-all duration-300 ease-in-out
+                   focus:outline-none focus:border-emerald-500/50 focus:ring-4 focus:ring-emerald-500/10"
           ></textarea>
         </div>
 

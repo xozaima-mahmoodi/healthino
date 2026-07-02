@@ -27,6 +27,13 @@ const ACCEPTED_TYPES = 'image/*,application/pdf'
 
 const GENDER_OPTIONS = ['male', 'female']
 
+// Cinematic triage status steps shown while the AI request is in flight.
+const TRIAGE_STEPS = [
+  '🔍 در حال آنالیز و رمزگشایی کلمات کلیدی علائم شما...',
+  '⚡ در حال برقراری اتصال امن با هسته مرکزی...',
+  '🩺 در حال تطبیق پروتکل‌های تریاژ و ارزیابی فوریت‌های پزشکی...'
+]
+
 const initialFormState = () => ({
   symptomChoice: '',
   additionalInfo: '',
@@ -64,6 +71,24 @@ const previewAttachment = ref(null)
 const previewSrc = ref('')
 let previewTempUrl = null
 let nextAttachmentId = 0
+
+// Live triage loading overlay: advance the status step over time.
+const triageStep = ref(0)
+let triageTimers = []
+
+function clearTriageTimers() {
+  for (const id of triageTimers) clearTimeout(id)
+  triageTimers = []
+}
+
+watch(() => symptomStore.submitting, (loading) => {
+  clearTriageTimers()
+  if (loading) {
+    triageStep.value = 0
+    triageTimers.push(setTimeout(() => { triageStep.value = 1 }, 2000))
+    triageTimers.push(setTimeout(() => { triageStep.value = 2 }, 4000))
+  }
+})
 
 const isModalOpen = computed(() => showQuestionsModal.value || !!previewAttachment.value)
 
@@ -301,6 +326,7 @@ onBeforeUnmount(() => {
     if (a.previewUrl) URL.revokeObjectURL(a.previewUrl)
   }
   if (previewTempUrl) URL.revokeObjectURL(previewTempUrl)
+  clearTriageTimers()
   window.removeEventListener('keydown', onKeydown)
   if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
@@ -1077,6 +1103,75 @@ async function submit() {
     </div>
   </Transition>
 
+  <!-- Live Intelligence Triage Dashboard loading overlay -->
+  <Teleport to="body">
+    <Transition name="triage-fade">
+      <div
+        v-if="symptomStore.submitting"
+        data-testid="triage-loading"
+        role="status"
+        aria-live="polite"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4
+               bg-slate-900/30 dark:bg-slate-950/50 backdrop-blur-md"
+      >
+        <div
+          class="w-full bg-white/40 backdrop-blur-xl border border-white/20 rounded-3xl p-8 max-w-lg mx-auto shadow-2xl
+                 dark:bg-slate-800/40 dark:border-white/10 text-center"
+        >
+          <!-- Pulsing radar / vortex core with ambient emerald glow -->
+          <div class="relative mx-auto mb-8 flex h-28 w-28 items-center justify-center">
+            <span class="absolute h-full w-full rounded-full bg-emerald-400/30 animate-ping"></span>
+            <span class="absolute h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl"></span>
+            <span
+              class="relative inline-flex h-20 w-20 items-center justify-center rounded-full
+                     bg-gradient-to-br from-emerald-500 to-emerald-700 text-white
+                     shadow-glow ring-1 ring-white/30"
+            >
+              <svg
+                class="triage-radar h-9 w-9"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="9" stroke-opacity="0.55"/>
+                <circle cx="12" cy="12" r="5" stroke-opacity="0.55"/>
+                <path d="M12 12 20 6"/>
+                <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>
+              </svg>
+            </span>
+          </div>
+
+          <h3 class="mb-6 text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
+            {{ t('symptom_form.analyzing') }}
+          </h3>
+
+          <!-- Dynamic cinematic status steps -->
+          <ul class="space-y-3.5 text-start">
+            <li
+              v-for="(step, i) in TRIAGE_STEPS"
+              :key="i"
+              data-testid="triage-step"
+              class="flex items-center gap-3 transition-all duration-500 ease-out"
+              :class="i <= triageStep ? 'opacity-100' : 'opacity-30'"
+            >
+              <span
+                class="h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse
+                       shadow-[0_0_10px_2px_rgba(16,185,129,0.7)]"
+              ></span>
+              <Transition name="triage-step-text" mode="out-in">
+                <span
+                  :key="i <= triageStep ? 'on' : 'off'"
+                  class="text-sm leading-relaxed text-slate-700 dark:text-slate-200"
+                >
+                  {{ step }}
+                </span>
+              </Transition>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <!-- Follow-up questions modal -->
   <Teleport to="body">
     <Transition name="modal-fade">
@@ -1300,5 +1395,50 @@ async function submit() {
 .modal-pop-leave-to {
   opacity: 0;
   transform: translateY(12px) scale(0.97);
+}
+
+/* Live triage overlay: silk fade in/out over 500ms */
+.triage-fade-enter-active,
+.triage-fade-leave-active {
+  transition: opacity 500ms ease;
+}
+.triage-fade-enter-active .max-w-lg,
+.triage-fade-leave-active .max-w-lg {
+  transition: transform 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 500ms ease;
+}
+.triage-fade-enter-from,
+.triage-fade-leave-to {
+  opacity: 0;
+}
+.triage-fade-enter-from .max-w-lg,
+.triage-fade-leave-to .max-w-lg {
+  opacity: 0;
+  transform: translateY(14px) scale(0.96);
+}
+
+/* Smooth swap as each status step becomes active */
+.triage-step-text-enter-active,
+.triage-step-text-leave-active {
+  transition: opacity 400ms ease;
+}
+.triage-step-text-enter-from,
+.triage-step-text-leave-to {
+  opacity: 0;
+}
+
+/* Slowly sweeping radar core for the vortex feel */
+@keyframes triage-radar-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.triage-radar {
+  animation: triage-radar-sweep 3.5s linear infinite;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .triage-radar {
+    animation: none;
+  }
 }
 </style>

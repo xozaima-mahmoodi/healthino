@@ -22,11 +22,16 @@
   html, body, #app {
     @apply h-full;
   }
+  /* Smoothly cross-fade the whole app shell when the .dark class is toggled on
+     the root, so switching themes glides instead of hard-flashing. */
+  html {
+    transition: background-color 500ms ease-in-out, color 500ms ease-in-out;
+  }
   body {
     @apply font-sans bg-surface text-slate-800 antialiased;
     font-feature-settings: "ss02", "kern";
     text-rendering: optimizeLegibility;
-    transition: background-color 250ms ease, color 250ms ease;
+    transition: background-color 500ms ease-in-out, color 500ms ease-in-out;
   }
   /* Vazirmatn's ss02 stylistic set is irrelevant for the Latin font. */
   html[lang="en"] body {

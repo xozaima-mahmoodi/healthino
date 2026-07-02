@@ -79,6 +79,12 @@ const showCinematicLoading = ref(false)
 const triageStep = ref(0)
 let triageTimers = []
 
+// Reveal the doctor cards a beat AFTER the results card appears, so their
+// staggered entrance reads as a final "processing" flourish rather than
+// popping in simultaneously with the rest of the result.
+const showDoctorsList = ref(false)
+let doctorsRevealTimer = null
+
 function clearTriageTimers() {
   for (const id of triageTimers) clearTimeout(id)
   triageTimers = []
@@ -311,6 +317,8 @@ watch(() => symptomStore.result, (val) => {
 })
 
 function startNewAssessment() {
+  clearTimeout(doctorsRevealTimer)
+  showDoctorsList.value = false
   symptomStore.reset()
 }
 
@@ -368,6 +376,7 @@ onBeforeUnmount(() => {
   }
   if (previewTempUrl) URL.revokeObjectURL(previewTempUrl)
   clearTriageTimers()
+  clearTimeout(doctorsRevealTimer)
   window.removeEventListener('keydown', onKeydown)
   if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
@@ -411,6 +420,8 @@ async function submit() {
     locale: localeStore.current
   }
 
+  clearTimeout(doctorsRevealTimer)
+  showDoctorsList.value = false
   showCinematicLoading.value = true
   const startedAt = Date.now()
   const ok = await symptomStore.analyze(payload)
@@ -422,6 +433,11 @@ async function submit() {
     await new Promise((resolve) => setTimeout(resolve, remaining))
   }
   showCinematicLoading.value = false
+
+  // Let the results card settle in first, then stagger the doctors in ~450ms later.
+  if (ok) {
+    doctorsRevealTimer = setTimeout(() => { showDoctorsList.value = true }, 450)
+  }
 
   if (ok) {
     toast.success(t('toast.analysis_success'))
@@ -1190,11 +1206,12 @@ async function submit() {
           </div>
         </div>
 
-        <ul class="space-y-2.5">
+        <TransitionGroup v-if="showDoctorsList" tag="ul" name="doc-stagger" class="space-y-2.5" appear>
           <li
-            v-for="doc in symptomStore.result.doctors"
+            v-for="(doc, i) in symptomStore.result.doctors"
             :key="doc.id"
             data-testid="result-doctor"
+            :style="{ '--i': i }"
             class="group flex items-center justify-between gap-4 rounded-2xl p-4 sm:p-5
                    bg-white/60 dark:bg-slate-800/50 backdrop-blur-md
                    border border-white/40 dark:border-white/10
@@ -1216,7 +1233,9 @@ async function submit() {
                 <div class="font-semibold tracking-tight text-slate-800 dark:text-slate-100 truncate">
                   {{ doc.name }}
                 </div>
-                <div class="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                <div class="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 leading-none
+                            bg-slate-50/50 dark:bg-slate-800/30
+                            text-xs text-slate-500 dark:text-slate-400">
                   <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -1230,20 +1249,20 @@ async function submit() {
 
             <div
               :aria-label="`${t('symptom_form.rating')}: ${doc.rating.toFixed(1)}`"
-              class="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1
-                     bg-amber-50/70 dark:bg-amber-950/30 backdrop-blur-sm
-                     border border-amber-200/60 dark:border-amber-800/40"
+              class="flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 leading-none
+                     bg-slate-50/50 dark:bg-slate-800/30 backdrop-blur-sm
+                     border border-slate-200/50 dark:border-white/10"
             >
               <svg class="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" viewBox="0 0 24 24"
                    fill="currentColor" stroke="none" aria-hidden="true">
                 <path d="M12 2.5l2.9 5.88 6.49.94-4.7 4.58 1.11 6.46L12 17.77l-5.8 3.05 1.1-6.46-4.69-4.58 6.49-.94z"/>
               </svg>
-              <span class="text-sm font-semibold tabular-nums tracking-tight text-slate-700 dark:text-slate-200">
+              <span class="text-sm font-semibold tabular-nums tracking-tight leading-none text-slate-700 dark:text-slate-200">
                 {{ doc.rating.toFixed(1) }}
               </span>
             </div>
           </li>
-        </ul>
+        </TransitionGroup>
       </div>
 
       <button
@@ -1614,6 +1633,26 @@ async function submit() {
     transition-delay: 0ms;
   }
   .aid-stagger-enter-from {
+    transform: none;
+  }
+}
+
+/* Staggered slide-up reveal for the recommended doctor cards. Each card enters
+   150ms after the previous one, sliding up from translate-y-4 with a fade. */
+.doc-stagger-enter-active {
+  transition: opacity 450ms ease, transform 450ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: calc(var(--i, 0) * 150ms);
+}
+.doc-stagger-enter-from {
+  opacity: 0;
+  transform: translateY(1rem);
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-stagger-enter-active {
+    transition: opacity 300ms ease;
+    transition-delay: 0ms;
+  }
+  .doc-stagger-enter-from {
     transform: none;
   }
 }

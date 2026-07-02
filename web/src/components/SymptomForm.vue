@@ -1176,7 +1176,7 @@ async function submit() {
       v-else
       key="result"
       data-testid="result-card"
-      class="rounded-3xl p-6 md:p-8 space-y-6
+      class="relative rounded-3xl p-6 md:p-8 space-y-6
              bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
              sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
              border border-slate-200/60 dark:border-white/10
@@ -1383,56 +1383,60 @@ async function submit() {
         </TransitionGroup>
       </div>
 
-      <!-- Smart Triage Summary Copy & Share action bar -->
+      <!-- Smart Triage Summary: subtle glass copy & share icon buttons in the card corner -->
       <Transition name="doc-header-fade">
         <div
           v-if="showDoctorsList"
           data-testid="triage-action-bar"
-          class="flex items-center justify-center gap-4 my-6 p-3
-                 bg-slate-50/50 dark:bg-slate-800/20
-                 border border-slate-200/40 dark:border-white/10
-                 rounded-2xl max-w-sm mx-auto"
+          class="absolute top-4 start-4 z-10 flex items-center gap-2"
         >
           <button
             type="button"
             data-testid="copy-summary-button"
+            :aria-label="summaryCopied ? t('symptom_form.summary_copied') : t('symptom_form.summary_copy')"
+            :title="summaryCopied ? t('symptom_form.summary_copied') : t('symptom_form.summary_copy')"
             @click="copySummary"
-            :class="[
-              'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium',
-              'hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm active:scale-95 transition-all duration-200',
-              summaryCopied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'
-            ]"
+            class="p-2 rounded-full border backdrop-blur-sm
+                   bg-white/50 dark:bg-slate-800/40
+                   border-slate-200/50 dark:border-white/10
+                   hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm
+                   active:scale-90 transition-all duration-200"
           >
-            <svg v-if="summaryCopied" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 6 9 17l-5-5"/>
-            </svg>
-            <svg v-else class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            <span>{{ summaryCopied ? t('symptom_form.summary_copied') : t('symptom_form.summary_copy') }}</span>
+            <Transition name="copy-icon" mode="out-in">
+              <svg v-if="summaryCopied" key="check"
+                   class="h-4 w-4 text-emerald-500 animate-pulse" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 6 9 17l-5-5"/>
+              </svg>
+              <svg v-else key="copy"
+                   class="h-4 w-4 text-slate-600 dark:text-slate-300" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </Transition>
           </button>
-
-          <div class="h-6 w-px bg-slate-200/70 dark:bg-white/10" aria-hidden="true"></div>
 
           <button
             type="button"
             data-testid="share-summary-button"
+            :aria-label="t('symptom_form.summary_share')"
+            :title="t('symptom_form.summary_share')"
             @click="shareSummary"
-            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
-                   text-slate-700 dark:text-slate-200
-                   hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm active:scale-95 transition-all duration-200"
+            class="p-2 rounded-full border backdrop-blur-sm
+                   bg-white/50 dark:bg-slate-800/40
+                   border-slate-200/50 dark:border-white/10
+                   text-slate-600 dark:text-slate-300
+                   hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm
+                   active:scale-90 transition-all duration-200"
           >
-            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none"
                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="18" cy="5" r="3"/>
               <circle cx="6" cy="12" r="3"/>
               <circle cx="18" cy="19" r="3"/>
               <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
             </svg>
-            <span>{{ t('symptom_form.summary_share') }}</span>
           </button>
         </div>
       </Transition>
@@ -1826,6 +1830,17 @@ async function submit() {
 .doc-header-fade-enter-from {
   opacity: 0;
   transform: translateY(6px);
+}
+
+/* Smooth copy -> checkmark icon swap on the corner action button. */
+.copy-icon-enter-active,
+.copy-icon-leave-active {
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+.copy-icon-enter-from,
+.copy-icon-leave-to {
+  opacity: 0;
+  transform: scale(0.6);
 }
 
 @media (prefers-reduced-motion: reduce) {

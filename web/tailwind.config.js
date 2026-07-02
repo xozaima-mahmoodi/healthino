@@ -51,13 +51,20 @@ export default {
         'aura-breathe': {
           '0%, 100%': { transform: 'translate3d(-50%, 0, 0) scale(1)', opacity: '0.7' },
           '50%':      { transform: 'translate3d(-50%, -4%, 0) scale(1.12)', opacity: '0.95' }
+        },
+        // A skewed highlight bar sweeps across, then rests, giving CTAs a
+        // continuous liquid-shimmer sheen with a premium pause between passes.
+        shimmer: {
+          '0%':        { transform: 'translateX(-160%) skewX(-12deg)' },
+          '55%, 100%': { transform: 'translateX(320%) skewX(-12deg)' }
         }
       },
       animation: {
         // Long, offset durations keep the three glows perpetually out of sync.
         'aura-drift':     'aura-drift 22s ease-in-out infinite',
         'aura-drift-alt': 'aura-drift-alt 28s ease-in-out infinite',
-        'aura-breathe':   'aura-breathe 19s ease-in-out infinite'
+        'aura-breathe':   'aura-breathe 19s ease-in-out infinite',
+        shimmer:          'shimmer 3s ease-in-out infinite'
       }
     }
   },

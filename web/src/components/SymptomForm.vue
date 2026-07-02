@@ -1182,13 +1182,20 @@ async function submit() {
         type="button"
         data-testid="new-assessment-button"
         @click="startNewAssessment"
-        class="w-full py-3.5 rounded-xl font-semibold text-white
-               bg-gradient-to-br from-brand to-brand-dark
-               shadow-cta hover:-translate-y-0.5 hover:shadow-glow
-               active:translate-y-0 active:shadow-cta
+        class="group relative isolate w-full overflow-hidden py-3.5 rounded-xl font-semibold text-white
+               bg-gradient-to-br from-brand to-brand-dark shadow-cta
+               hover:-translate-y-0.5 active:translate-y-0
+               hover:shadow-[0_0_25px_rgba(16,185,129,0.4)]
                transition-all duration-300 ease-out"
       >
-        {{ t('symptom_form.new_assessment') }}
+        <!-- Liquid shimmer sheen sweeping across the button -->
+        <span
+          aria-hidden="true"
+          class="pointer-events-none absolute inset-y-0 left-0 z-0 w-1/3
+                 bg-gradient-to-r from-transparent via-white/30 to-transparent
+                 animate-shimmer motion-reduce:hidden"
+        ></span>
+        <span class="relative z-10">{{ t('symptom_form.new_assessment') }}</span>
       </button>
     </div>
   </Transition>

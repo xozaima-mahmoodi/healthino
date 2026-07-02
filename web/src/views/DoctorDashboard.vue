@@ -105,10 +105,18 @@ onMounted(loadRecent)
                 type="submit"
                 :disabled="!canSubmit"
                 data-testid="doctor-view-button"
-                class="px-5 rounded-lg bg-brand text-white font-semibold
-                       shadow-md hover:bg-brand-dark transition disabled:opacity-50"
+                class="group relative isolate overflow-hidden px-5 rounded-lg bg-brand text-white font-semibold shadow-md
+                       hover:bg-brand-dark hover:-translate-y-0.5 active:translate-y-0
+                       hover:shadow-[0_0_25px_rgba(16,185,129,0.4)]
+                       transition-all duration-300 ease-out disabled:opacity-50"
               >
-                {{ t('doctor.view_history') }}
+                <span
+                  aria-hidden="true"
+                  class="pointer-events-none absolute inset-y-0 left-0 z-0 w-1/3
+                         bg-gradient-to-r from-transparent via-white/30 to-transparent
+                         animate-shimmer motion-reduce:hidden group-disabled:hidden"
+                ></span>
+                <span class="relative z-10">{{ t('doctor.view_history') }}</span>
               </button>
             </div>
             <p class="text-xs text-slate-500 dark:text-slate-400">

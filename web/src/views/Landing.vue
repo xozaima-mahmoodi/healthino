@@ -46,18 +46,24 @@ const { t } = useI18n()
 
         <RouterLink
           to="/symptoms"
-          class="group mt-10 sm:mt-12 inline-flex items-center justify-center gap-3
+          class="group relative isolate overflow-hidden mt-10 sm:mt-12 inline-flex items-center justify-center gap-3
                  px-10 sm:px-12 py-4 sm:py-5 rounded-full
                  bg-brand text-white text-base sm:text-lg font-semibold
                  shadow-cta
-                 transition-all duration-300 ease-bounceish
-                 hover:bg-brand-dark hover:-translate-y-0.5 hover:shadow-[0_18px_36px_-8px_rgba(5,150,105,0.55)]
+                 transition-all duration-300 ease-out
+                 hover:bg-brand-dark hover:-translate-y-0.5 hover:shadow-[0_0_25px_rgba(16,185,129,0.4)]
                  active:translate-y-0 active:shadow-cta
                  focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-ring"
         >
-          <span>{{ t('landing.cta_start') }}</span>
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-y-0 left-0 z-0 w-1/3
+                   bg-gradient-to-r from-transparent via-white/30 to-transparent
+                   animate-shimmer motion-reduce:hidden"
+          ></span>
+          <span class="relative z-10">{{ t('landing.cta_start') }}</span>
           <svg
-            class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1
+            class="relative z-10 h-5 w-5 transition-transform duration-300 group-hover:translate-x-1
                    rtl:rotate-180 rtl:group-hover:-translate-x-1"
             viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">

@@ -72,7 +72,10 @@ const previewSrc = ref('')
 let previewTempUrl = null
 let nextAttachmentId = 0
 
-// Live triage loading overlay: advance the status step over time.
+// Live triage loading overlay: stays visible for a minimum cinematic duration
+// even when the API responds almost instantly, so the animation is never skipped.
+const MIN_CINEMATIC_MS = 5500
+const showCinematicLoading = ref(false)
 const triageStep = ref(0)
 let triageTimers = []
 
@@ -81,7 +84,7 @@ function clearTriageTimers() {
   triageTimers = []
 }
 
-watch(() => symptomStore.submitting, (loading) => {
+watch(showCinematicLoading, (loading) => {
   clearTriageTimers()
   if (loading) {
     triageStep.value = 0
@@ -342,7 +345,7 @@ const apiErrorMessages = computed(() => {
 })
 
 async function submit() {
-  if (symptomStore.submitting) return
+  if (symptomStore.submitting || showCinematicLoading.value) return
   if (!validate()) return
   const symptoms = [t(`symptoms.${form.symptomChoice}`)]
   const extra = form.additionalInfo.trim()
@@ -369,7 +372,19 @@ async function submit() {
     document_answers: documentAnswers,
     locale: localeStore.current
   }
+
+  showCinematicLoading.value = true
+  const startedAt = Date.now()
   const ok = await symptomStore.analyze(payload)
+
+  // Keep the cinematic overlay on screen for the full minimum duration,
+  // even if the API already resolved, before revealing the results card.
+  const remaining = MIN_CINEMATIC_MS - (Date.now() - startedAt)
+  if (remaining > 0) {
+    await new Promise((resolve) => setTimeout(resolve, remaining))
+  }
+  showCinematicLoading.value = false
+
   if (ok) {
     toast.success(t('toast.analysis_success'))
   } else if (symptomStore.error) {
@@ -967,7 +982,7 @@ async function submit() {
 
         <button
           type="submit"
-          :disabled="symptomStore.submitting"
+          :disabled="symptomStore.submitting || showCinematicLoading"
           class="w-full py-3.5 rounded-xl font-semibold text-white
                  bg-gradient-to-br from-brand to-brand-dark
                  shadow-cta hover:-translate-y-0.5 hover:shadow-glow
@@ -975,7 +990,7 @@ async function submit() {
                  transition-all duration-300 ease-out
                  disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0"
         >
-          {{ symptomStore.submitting ? t('symptom_form.analyzing') : t('symptom_form.submit') }}
+          {{ (symptomStore.submitting || showCinematicLoading) ? t('symptom_form.analyzing') : t('symptom_form.submit') }}
         </button>
       </form>
     </div>
@@ -1107,7 +1122,7 @@ async function submit() {
   <Teleport to="body">
     <Transition name="triage-fade">
       <div
-        v-if="symptomStore.submitting"
+        v-if="showCinematicLoading"
         data-testid="triage-loading"
         role="status"
         aria-live="polite"

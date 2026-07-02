@@ -1182,29 +1182,51 @@ async function submit() {
       </div>
 
       <div v-if="symptomStore.result.doctors?.length" class="space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('symptom_form.recommended_doctors') }}</div>
+        <Transition name="doc-header-fade">
+          <div v-if="showDoctorsList" class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <!-- Pulsating heartbeat / pulse icon -->
+                <svg
+                  class="h-4 w-4 shrink-0 animate-pulse text-emerald-500 dark:text-emerald-400"
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                >
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {{ t('symptom_form.recommended_doctors') }}
+                </span>
+              </div>
 
-          <!-- Triage urgency badge with pulsating status dot -->
-          <div
-            v-if="triageUrgency"
-            data-testid="triage-urgency-badge"
-            :class="[
-              'inline-flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-md border shadow-sm',
-              triageUrgency.chip
-            ]"
-          >
-            <span class="relative flex h-2 w-2">
-              <span
-                :class="['absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping', triageUrgency.dot]"
-              ></span>
-              <span :class="['relative inline-flex h-2 w-2 rounded-full', triageUrgency.dot]"></span>
-            </span>
-            <span :class="['text-xs font-semibold tracking-wide', triageUrgency.text]">
-              {{ t('symptom_form.urgency_label') }}: {{ triageUrgency.label }}
-            </span>
+              <!-- Triage urgency badge with pulsating status dot -->
+              <div
+                v-if="triageUrgency"
+                data-testid="triage-urgency-badge"
+                :class="[
+                  'inline-flex items-center gap-2 rounded-full px-3 py-1.5 backdrop-blur-md border shadow-sm',
+                  triageUrgency.chip
+                ]"
+              >
+                <span class="relative flex h-2 w-2">
+                  <span
+                    :class="['absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping', triageUrgency.dot]"
+                  ></span>
+                  <span :class="['relative inline-flex h-2 w-2 rounded-full', triageUrgency.dot]"></span>
+                </span>
+                <span :class="['text-xs font-semibold tracking-wide', triageUrgency.text]">
+                  {{ t('symptom_form.urgency_label') }}: {{ triageUrgency.label }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Laser expanding divider: scales out from the center on reveal -->
+            <div
+              class="doc-divider h-px w-full bg-gradient-to-r from-transparent via-emerald-500/40 to-transparent"
+              aria-hidden="true"
+            ></div>
           </div>
-        </div>
+        </Transition>
 
         <TransitionGroup v-if="showDoctorsList" tag="ul" name="doc-stagger" class="space-y-2.5" appear>
           <li
@@ -1214,10 +1236,10 @@ async function submit() {
             :style="{ '--i': i }"
             class="group flex items-center justify-between gap-4 rounded-2xl p-4 sm:p-5
                    bg-white/60 dark:bg-slate-800/50 backdrop-blur-md
-                   border border-white/40 dark:border-white/10
+                   border border-slate-200/80 dark:border-slate-700/60
                    shadow-sm transition-all duration-300 ease-out
                    hover:-translate-y-1 hover:shadow-lg
-                   hover:border-emerald-200/50 dark:hover:border-emerald-400/25"
+                   hover:border-emerald-500/40 dark:hover:border-emerald-500/40"
           >
             <div class="flex items-center gap-3 min-w-0">
               <div
@@ -1633,6 +1655,37 @@ async function submit() {
     transition-delay: 0ms;
   }
   .aid-stagger-enter-from {
+    transform: none;
+  }
+}
+
+/* Laser divider: expands horizontally from the center when it mounts. */
+@keyframes doc-divider-expand {
+  from { transform: scaleX(0); opacity: 0; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+.doc-divider {
+  transform-origin: center;
+  animation: doc-divider-expand 700ms ease-out both;
+}
+
+/* Soft fade + rise for the doctors section header. */
+.doc-header-fade-enter-active {
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+.doc-header-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-divider {
+    animation: none;
+  }
+  .doc-header-fade-enter-active {
+    transition: opacity 300ms ease;
+  }
+  .doc-header-fade-enter-from {
     transform: none;
   }
 }

@@ -17,11 +17,11 @@ const { t } = useI18n()
            border border-white/60 dark:border-white/10
            ring-1 ring-slate-900/5 dark:ring-white/5
            shadow-sm dark:shadow-none text-slate-700 dark:text-slate-200
-           transition-all duration-200 ease-bounceish
-           hover:bg-white/90 dark:hover:bg-slate-800/80
-           hover:scale-110 hover:shadow-md
+           transition-all duration-200 ease-out
+           hover:bg-slate-100/80 dark:hover:bg-slate-800/80
+           hover:scale-105 active:scale-95
+           hover:shadow-[0_0_16px_-2px_rgba(16,185,129,0.35)]
            hover:text-brand-dark dark:hover:text-emerald-300
-           active:scale-100
            focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-ring"
   >
     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"

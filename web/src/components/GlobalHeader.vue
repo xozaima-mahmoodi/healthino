@@ -23,12 +23,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <header class="sticky top-0 z-40
-                 backdrop-blur-md
-                 bg-white/70 dark:bg-slate-900/60
-                 border-b border-slate-300/50 dark:border-slate-700/50
-                 shadow-sm dark:shadow-none">
-    <div class="max-w-6xl mx-auto px-3 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
+  <header class="sticky top-3 z-40 px-4">
+    <div class="max-w-7xl mx-auto my-4 rounded-2xl py-2.5 px-6
+                flex items-center justify-between gap-2 sm:gap-3
+                bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl
+                border border-white/40 dark:border-white/10
+                shadow-[0_10px_30px_rgba(0,0,0,0.03),0_18px_50px_-12px_rgba(16,185,129,0.20)]">
       <RouterLink
         to="/"
         data-testid="brand-link"

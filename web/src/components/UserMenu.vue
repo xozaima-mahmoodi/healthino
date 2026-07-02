@@ -93,10 +93,12 @@ function logout() {
              border border-white/60 dark:border-white/10
              ring-1 ring-slate-900/5 dark:ring-white/5
              text-slate-700 dark:text-slate-200
-             hover:bg-white/90 dark:hover:bg-slate-800/80
+             hover:bg-slate-100/80 dark:hover:bg-slate-800/80
+             hover:scale-105 active:scale-95
+             hover:shadow-[0_0_16px_-2px_rgba(16,185,129,0.35)]
              hover:text-brand-dark dark:hover:text-emerald-300
              focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-ring
-             transition"
+             transition-all duration-200 ease-out"
     >
       <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg"
            viewBox="0 0 24 24" fill="none" stroke="currentColor"

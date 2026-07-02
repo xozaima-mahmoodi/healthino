@@ -17,9 +17,10 @@ const { t } = useI18n()
            border border-white/60 dark:border-white/10
            ring-1 ring-slate-900/5 dark:ring-white/5
            text-slate-700 dark:text-amber-200
-           transition-all duration-300 ease-bounceish
-           hover:bg-white/90 dark:hover:bg-slate-800/80
-           hover:scale-110
+           transition-all duration-200 ease-out
+           hover:bg-slate-100/80 dark:hover:bg-slate-800/80
+           hover:scale-105 active:scale-95
+           hover:shadow-[0_0_16px_-2px_rgba(16,185,129,0.35)]
            focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-ring"
     @click="theme.toggle()"
   >

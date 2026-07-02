@@ -85,6 +85,12 @@ let triageTimers = []
 const showDoctorsList = ref(false)
 let doctorsRevealTimer = null
 
+// Snapshot of the submitted inputs (the form is reset once results arrive, so
+// we capture the human-readable values at submit time for the share summary).
+const lastAssessment = ref(null)
+const summaryCopied = ref(false)
+let summaryCopiedTimer = null
+
 function clearTriageTimers() {
   for (const id of triageTimers) clearTimeout(id)
   triageTimers = []
@@ -318,8 +324,90 @@ watch(() => symptomStore.result, (val) => {
 
 function startNewAssessment() {
   clearTimeout(doctorsRevealTimer)
+  clearTimeout(summaryCopiedTimer)
   showDoctorsList.value = false
+  summaryCopied.value = false
   symptomStore.reset()
+}
+
+// Formats the submitted symptoms + AI triage result into a clean, shareable text block.
+function buildTriageSummary() {
+  const r = symptomStore.result
+  const a = lastAssessment.value
+  const lines = [t('symptom_form.summary_heading')]
+  if (a?.symptoms?.length) lines.push(`${t('symptom_form.summary_symptoms')}: ${a.symptoms.join('، ')}`)
+  if (a?.bodyArea) lines.push(`${t('symptom_form.body_area_label')}: ${a.bodyArea}`)
+  if (a && Number.isFinite(a.severity)) lines.push(`${t('symptom_form.summary_severity')}: ${a.severity}/10`)
+  if (a && Number.isFinite(a.durationHours) && a.durationHours > 0) {
+    lines.push(`${t('symptom_form.duration_label')}: ${a.durationHours}`)
+  }
+  if (r?.red_flag) lines.push(`⚠️ ${t('symptom_form.red_flag_warning')}`)
+  if (r?.specialty?.name) lines.push(`${t('symptom_form.recommended_specialty')}: ${r.specialty.name}`)
+  const aid = firstAidItems.value
+  if (aid?.length) {
+    lines.push(`${t('symptom_form.first_aid.title')}:`)
+    for (const item of aid) lines.push(`• ${item}`)
+  }
+  if (r?.doctors?.length) {
+    lines.push(`${t('symptom_form.recommended_doctors')}:`)
+    for (const d of r.doctors) {
+      lines.push(`• ${d.name} — ${d.experience_years} ${t('symptom_form.experience_years')} · ★ ${d.rating.toFixed(1)}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+// Copies text with a graceful fallback for browsers/contexts without the async
+// Clipboard API (e.g. non-secure origins).
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch (e) { /* fall through to legacy path */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(ta)
+    return ok
+  } catch (e) {
+    return false
+  }
+}
+
+async function copySummary() {
+  const ok = await copyText(buildTriageSummary())
+  if (ok) {
+    summaryCopied.value = true
+    clearTimeout(summaryCopiedTimer)
+    summaryCopiedTimer = setTimeout(() => { summaryCopied.value = false }, 2000)
+  } else {
+    toast.error(t('toast.copy_error'))
+  }
+}
+
+async function shareSummary() {
+  const text = buildTriageSummary()
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: t('symptom_form.summary_heading'), text })
+    } catch (e) {
+      // The user dismissing the native share sheet throws AbortError — ignore it.
+      if (e && e.name !== 'AbortError') toast.error(t('toast.share_error'))
+    }
+    return
+  }
+  // Graceful fallback when the Web Share API is unavailable: copy + inform.
+  const ok = await copyText(text)
+  if (ok) toast.info(t('toast.share_unsupported_copied'))
+  else toast.error(t('toast.share_error'))
 }
 
 // Live context meter for the free-text field: counts words and flags when the
@@ -377,6 +465,7 @@ onBeforeUnmount(() => {
   if (previewTempUrl) URL.revokeObjectURL(previewTempUrl)
   clearTriageTimers()
   clearTimeout(doctorsRevealTimer)
+  clearTimeout(summaryCopiedTimer)
   window.removeEventListener('keydown', onKeydown)
   if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
@@ -418,6 +507,13 @@ async function submit() {
     user_answers: { ...userAnswers },
     document_answers: documentAnswers,
     locale: localeStore.current
+  }
+
+  lastAssessment.value = {
+    symptoms: [...symptoms],
+    severity: Number(form.severity),
+    bodyArea: form.body_area ? t(`body_areas.${form.body_area}`) : '',
+    durationHours: Number(form.duration_hours)
   }
 
   clearTimeout(doctorsRevealTimer)
@@ -1286,6 +1382,60 @@ async function submit() {
           </li>
         </TransitionGroup>
       </div>
+
+      <!-- Smart Triage Summary Copy & Share action bar -->
+      <Transition name="doc-header-fade">
+        <div
+          v-if="showDoctorsList"
+          data-testid="triage-action-bar"
+          class="flex items-center justify-center gap-4 my-6 p-3
+                 bg-slate-50/50 dark:bg-slate-800/20
+                 border border-slate-200/40 dark:border-white/10
+                 rounded-2xl max-w-sm mx-auto"
+        >
+          <button
+            type="button"
+            data-testid="copy-summary-button"
+            @click="copySummary"
+            :class="[
+              'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium',
+              'hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm active:scale-95 transition-all duration-200',
+              summaryCopied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'
+            ]"
+          >
+            <svg v-if="summaryCopied" class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6 9 17l-5-5"/>
+            </svg>
+            <svg v-else class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span>{{ summaryCopied ? t('symptom_form.summary_copied') : t('symptom_form.summary_copy') }}</span>
+          </button>
+
+          <div class="h-6 w-px bg-slate-200/70 dark:bg-white/10" aria-hidden="true"></div>
+
+          <button
+            type="button"
+            data-testid="share-summary-button"
+            @click="shareSummary"
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
+                   text-slate-700 dark:text-slate-200
+                   hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm active:scale-95 transition-all duration-200"
+          >
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
+            </svg>
+            <span>{{ t('symptom_form.summary_share') }}</span>
+          </button>
+        </div>
+      </Transition>
 
       <button
         type="button"

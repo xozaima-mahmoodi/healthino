@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, RouterLink } from 'vue-router'
 import GlobalHeader from '../components/GlobalHeader.vue'
@@ -115,6 +115,42 @@ function symptomSummary(a) {
     .filter(Boolean)
     .join(' · ')
 }
+
+// ── Search & severity filtering ────────────────────────────────────────
+const searchQuery = ref('')
+const severityFilter = ref('all') // 'all' | 'acute' | 'stable'
+const SEVERITY_CHIPS = [
+  { key: 'all', labelKey: 'history.filter.all' },
+  { key: 'acute', labelKey: 'history.filter.acute' },
+  { key: 'stable', labelKey: 'history.filter.stable' }
+]
+
+function matchesSeverity(a) {
+  if (severityFilter.value === 'all') return true
+  const cat = severityCategory(a)
+  // "acute" groups the elevated tiers (emergency + warning); "stable" is the rest.
+  return severityFilter.value === 'acute'
+    ? cat === 'emergency' || cat === 'warning'
+    : cat === 'stable'
+}
+
+// Live-filtered timeline: severity chip + free-text over symptom, notes, body
+// area and recommended specialty. The insights gauge above stays on the full
+// history so the summary doesn't shift as you narrow the list.
+const filteredItems = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  return historyStore.items.filter((a) => {
+    if (!matchesSeverity(a)) return false
+    if (!q) return true
+    const hay = [
+      localizedSymptom(a.primary_symptom),
+      a.additional_info,
+      a.body_area ? localizedBodyArea(a.body_area) : '',
+      a.result?.specialty?.name
+    ].filter(Boolean).join(' ').toLowerCase()
+    return hay.includes(q)
+  })
+})
 
 // Aggregate health insight for the dashboard gauge. Derives a 0–100 "wellness"
 // score from the average reported severity (lower severity → higher score),
@@ -290,6 +326,54 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- Minimalist History Search & Triage Filter Bar -->
+        <div
+          v-if="authStore.isAuthenticated && !historyStore.loading && !historyStore.error && historyStore.items.length"
+          data-testid="history-filter-bar"
+          class="flex flex-wrap items-center justify-between gap-3 mb-6 max-w-2xl mx-auto px-2"
+        >
+          <div class="relative w-full sm:w-64">
+            <input
+              v-model="searchQuery"
+              type="text"
+              data-testid="history-search"
+              :placeholder="t('history.filter.search_placeholder')"
+              :aria-label="t('history.filter.search_placeholder')"
+              class="ps-3 pe-9 py-1.5 w-full bg-white/40 dark:bg-slate-800/20
+                     border border-slate-200/40 dark:border-white/10 rounded-xl text-xs
+                     text-slate-700 dark:text-slate-200 placeholder-slate-400
+                     focus:outline-none focus:border-emerald-500/50 transition-colors"
+            />
+            <svg
+              class="absolute end-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.3-4.3"/>
+            </svg>
+          </div>
+
+          <div class="flex items-center gap-1.5" data-testid="history-severity-filter">
+            <button
+              v-for="chip in SEVERITY_CHIPS"
+              :key="chip.key"
+              type="button"
+              :data-testid="`filter-${chip.key}`"
+              :aria-pressed="severityFilter === chip.key"
+              @click="severityFilter = chip.key"
+              :class="[
+                'rounded-lg text-xs px-2.5 py-1 transition-all duration-200',
+                severityFilter === chip.key
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-500/10'
+              ]"
+            >
+              {{ t(chip.labelKey) }}
+            </button>
+          </div>
+        </div>
+
         <div
           v-if="!authStore.isAuthenticated"
           data-testid="history-needs-auth"
@@ -349,6 +433,20 @@ onMounted(() => {
           {{ t('history.empty') }}
         </div>
 
+        <div
+          v-else-if="filteredItems.length === 0"
+          data-testid="history-no-results"
+          class="rounded-2xl p-6 sm:p-8 text-center
+                 bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
+                 sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
+                 border border-white/60 dark:border-white/10
+                 ring-1 ring-slate-900/5 dark:ring-emerald-400/15
+                 shadow-glass dark:shadow-glass-dk
+                 text-slate-500 dark:text-slate-400"
+        >
+          {{ t('history.filter.no_results') }}
+        </div>
+
         <ol
           v-else
           data-testid="history-timeline"
@@ -356,7 +454,7 @@ onMounted(() => {
                  border-s-2 border-dashed border-slate-200 dark:border-slate-700/60"
         >
           <li
-            v-for="a in historyStore.items"
+            v-for="a in filteredItems"
             :key="a.id"
             data-testid="history-item"
             :data-id="a.id"

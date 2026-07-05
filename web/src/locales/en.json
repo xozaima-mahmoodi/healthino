@@ -30,6 +30,13 @@
       "trend_up": "Based on your recent assessments, your symptom severity is trending up — consider following up.",
       "trend_stable": "Based on your recent assessments, your symptom severity has stayed fairly stable.",
       "trend_single": "Log a few more assessments and your health trend will appear here."
+    },
+    "filter": {
+      "search_placeholder": "Search symptoms or diagnosis…",
+      "all": "All",
+      "acute": "Acute",
+      "stable": "Stable",
+      "no_results": "No entries match the selected filter."
     }
   },
   "toast": {

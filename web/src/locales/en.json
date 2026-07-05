@@ -19,7 +19,18 @@
     "intensity_label": "Intensity",
     "body_area_label": "Area",
     "duration_label": "Duration",
-    "recommended_specialty": "Recommended specialty"
+    "recommended_specialty": "Recommended specialty",
+    "insights": {
+      "title": "Recent health insight",
+      "status_label": "Overall status",
+      "status_good": "Good",
+      "status_moderate": "Moderate",
+      "status_attention": "Needs attention",
+      "trend_down": "Based on your recent assessments, your symptom severity is trending down and stabilizing.",
+      "trend_up": "Based on your recent assessments, your symptom severity is trending up — consider following up.",
+      "trend_stable": "Based on your recent assessments, your symptom severity has stayed fairly stable.",
+      "trend_single": "Log a few more assessments and your health trend will appear here."
+    }
   },
   "toast": {
     "dismiss": "Dismiss notification",

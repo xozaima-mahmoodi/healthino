@@ -116,6 +116,62 @@ function symptomSummary(a) {
     .join(' · ')
 }
 
+// Aggregate health insight for the dashboard gauge. Derives a 0–100 "wellness"
+// score from the average reported severity (lower severity → higher score),
+// a status tier, and a trend by comparing the newer half of entries against the
+// older half. Items arrive newest-first (recent_first), so slice(0, mid) is the
+// most recent window. Returns null when there's no usable severity data.
+const healthInsights = computed(() => {
+  const vals = historyStore.items
+    .map((a) => Number(a.intensity))
+    .filter((n) => Number.isFinite(n) && n > 0)
+  if (!vals.length) return null
+
+  const avg = vals.reduce((s, n) => s + n, 0) / vals.length
+  const score = Math.round(((10 - avg) / 9) * 100) // avg 1→100, avg 10→0
+
+  let statusKey, accent, glow
+  if (avg <= 3.5) {
+    statusKey = 'good'; accent = '#10b981'; glow = 'shadow-emerald-500/20'
+  } else if (avg <= 6.5) {
+    statusKey = 'moderate'; accent = '#f59e0b'; glow = 'shadow-amber-500/20'
+  } else {
+    statusKey = 'attention'; accent = '#f43f5e'; glow = 'shadow-rose-500/20'
+  }
+
+  let trend = 'single'
+  if (vals.length >= 2) {
+    const mid = Math.floor(vals.length / 2) || 1
+    const newer = vals.slice(0, mid)
+    const older = vals.slice(mid)
+    const meanNewer = newer.reduce((s, n) => s + n, 0) / newer.length
+    const meanOlder = older.reduce((s, n) => s + n, 0) / (older.length || 1)
+    const delta = meanNewer - meanOlder // severity change, recent minus older
+    if (delta <= -0.75) trend = 'down'      // severity falling → improving
+    else if (delta >= 0.75) trend = 'up'    // severity rising → worsening
+    else trend = 'stable'
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    statusKey,
+    statusLabel: t(`history.insights.status_${statusKey}`),
+    accent,
+    glow,
+    trend,
+    insightText: t(`history.insights.trend_${trend}`)
+  }
+})
+
+// Conic-gradient fill for the ring gauge: accent up to `score`, faint track after.
+const gaugeStyle = computed(() => {
+  const i = healthInsights.value
+  if (!i) return {}
+  return {
+    background: `conic-gradient(${i.accent} ${i.score * 3.6}deg, rgba(148,163,184,0.20) ${i.score * 3.6}deg)`
+  }
+})
+
 // Export a past log as a branded PDF via the shared report composable. We map
 // the stored assessment into the normalized record it expects; `first_aid` is
 // not persisted with old assessments, so we fall back to the default care tips.
@@ -172,6 +228,67 @@ onMounted(() => {
         >
           {{ t('history.viewing_patient', { name: historyStore.patient.name }) }}
         </p>
+
+        <!-- Minimal Health Insights / Risk Gauge -->
+        <div
+          v-if="authStore.isAuthenticated && !historyStore.loading && !historyStore.error && healthInsights"
+          data-testid="health-insights"
+          class="p-5 bg-gradient-to-br from-white/80 to-white/40
+                 dark:from-slate-800/60 dark:to-slate-800/20 backdrop-blur-xl
+                 border border-slate-200/50 dark:border-white/10 rounded-3xl
+                 shadow-[0_8px_30px_rgb(0,0,0,0.02)] mb-8
+                 flex items-center justify-between gap-6 max-w-2xl mx-auto"
+        >
+          <!-- Visual gauge (start side / right in RTL) -->
+          <div class="relative flex flex-col items-center gap-2 shrink-0">
+            <div class="relative">
+              <span
+                aria-hidden="true"
+                class="absolute inset-0 rounded-full blur-xl opacity-40 animate-pulse"
+                :style="{ backgroundColor: healthInsights.accent }"
+              ></span>
+              <div
+                class="relative h-20 w-20 rounded-full flex items-center justify-center shadow-lg"
+                :class="healthInsights.glow"
+                :style="gaugeStyle"
+                role="img"
+                :aria-label="`${t('history.insights.status_label')}: ${healthInsights.statusLabel}`"
+              >
+                <div
+                  class="h-[58px] w-[58px] rounded-full bg-white dark:bg-slate-900
+                         flex flex-col items-center justify-center leading-none"
+                >
+                  <span
+                    data-testid="insights-score"
+                    class="text-lg font-extrabold text-slate-800 dark:text-slate-100"
+                  >{{ healthInsights.score }}</span>
+                  <span class="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">/ 100</span>
+                </div>
+              </div>
+            </div>
+            <span
+              data-testid="insights-status"
+              class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap"
+              :class="{
+                'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400': healthInsights.statusKey === 'good',
+                'bg-amber-500/10 text-amber-600 dark:text-amber-400': healthInsights.statusKey === 'moderate',
+                'bg-rose-500/10 text-rose-600 dark:text-rose-400': healthInsights.statusKey === 'attention'
+              }"
+            >
+              {{ t('history.insights.status_label') }}: {{ healthInsights.statusLabel }}
+            </span>
+          </div>
+
+          <!-- Smart trend typography (end side / left in RTL) -->
+          <div class="flex-1 text-start">
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              {{ t('history.insights.title') }}
+            </p>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              {{ healthInsights.insightText }}
+            </p>
+          </div>
+        </div>
 
         <div
           v-if="!authStore.isAuthenticated"

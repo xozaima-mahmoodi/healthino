@@ -56,6 +56,62 @@ function intensityTone(n) {
   return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'
 }
 
+// Derive a triage severity from the persisted result. `red_flag` is the
+// clinical emergency signal; otherwise we fall back to reported intensity.
+function severityCategory(a) {
+  if (a.result?.red_flag) return 'emergency'
+  if ((a.intensity ?? 0) >= 5) return 'warning'
+  return 'stable'
+}
+
+// Glowing color-coded indicator dot per severity. Emergency pulses.
+function severityDotClass(a) {
+  switch (severityCategory(a)) {
+    case 'emergency':
+      return 'bg-rose-500 animate-pulse shadow-[0_0_12px_3px_rgba(244,63,94,0.55)]'
+    case 'warning':
+      return 'bg-amber-500 shadow-[0_0_12px_3px_rgba(245,158,11,0.5)]'
+    default:
+      return 'bg-emerald-500 shadow-[0_0_12px_3px_rgba(16,185,129,0.5)]'
+  }
+}
+
+const relativeTimeFormatter = computed(() => {
+  const tag = DATE_LOCALE_TAGS[locale.value] || 'fa-IR'
+  try {
+    return new Intl.RelativeTimeFormat(tag, { numeric: 'auto' })
+  } catch {
+    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+  }
+})
+
+// Localized "۲ روز پیش" style elapsed time. Numerals follow the active locale.
+function timeAgo(iso) {
+  if (!iso) return ''
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return ''
+  const diffSec = Math.round((then - Date.now()) / 1000) // negative for the past
+  const abs = Math.abs(diffSec)
+  const rtf = relativeTimeFormatter.value
+  try {
+    if (abs < 60) return rtf.format(Math.round(diffSec), 'second')
+    if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute')
+    if (abs < 86400) return rtf.format(Math.round(diffSec / 3600), 'hour')
+    if (abs < 2592000) return rtf.format(Math.round(diffSec / 86400), 'day')
+    if (abs < 31536000) return rtf.format(Math.round(diffSec / 2592000), 'month')
+    return rtf.format(Math.round(diffSec / 31536000), 'year')
+  } catch {
+    return formatDate(iso)
+  }
+}
+
+// Compact one-line summary of the symptoms the user actually typed.
+function symptomSummary(a) {
+  return [localizedSymptom(a.primary_symptom), a.additional_info]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 onMounted(() => {
   if (!authStore.isAuthenticated) return
   const userId = route.query.user_id ? Number(route.query.user_id) : undefined
@@ -145,38 +201,39 @@ onMounted(() => {
         <ol
           v-else
           data-testid="history-timeline"
-          class="relative ps-6 sm:ps-8"
+          class="relative ms-4 ps-6 sm:ps-8
+                 border-s-2 border-dashed border-slate-200 dark:border-slate-700/60"
         >
-          <span class="absolute top-2 bottom-2 start-2 sm:start-3 w-px bg-slate-200 dark:bg-slate-700"
-                aria-hidden="true"></span>
-
           <li
             v-for="a in historyStore.items"
             :key="a.id"
             data-testid="history-item"
             :data-id="a.id"
-            class="relative pb-5 sm:pb-6 last:pb-0"
+            class="relative"
           >
             <span
-              class="absolute -start-5 sm:-start-6 top-3 h-3 w-3 rounded-full
-                     bg-brand ring-4 ring-white dark:ring-slate-950"
+              data-testid="history-item-severity"
+              :data-severity="severityCategory(a)"
+              class="absolute -start-[9px] sm:-start-[10px] top-5 h-3.5 w-3.5 rounded-full
+                     ring-4 ring-white dark:ring-slate-950"
+              :class="severityDotClass(a)"
               aria-hidden="true"
             ></span>
 
             <article
-              class="rounded-2xl p-4 sm:p-5
-                     bg-white/90 dark:bg-slate-800/60 backdrop-blur-md
-                     sm:bg-white/80 sm:dark:bg-slate-800/40 sm:backdrop-blur-xl
-                     border border-white/60 dark:border-white/10
-                     ring-1 ring-slate-900/5 dark:ring-emerald-400/15
-                     shadow-glass dark:shadow-glass-dk"
+              class="p-4 mb-4
+                     bg-white/60 dark:bg-slate-800/40 backdrop-blur-md
+                     border border-slate-200/50 dark:border-white/10 rounded-2xl
+                     shadow-[0_4px_20px_rgba(0,0,0,0.06)]
+                     hover:scale-[1.02] transition-all duration-300"
             >
-              <div class="flex items-center justify-between gap-3 mb-2">
+              <div class="flex items-center justify-between gap-3 mb-1">
                 <time
                   :datetime="a.created_at"
+                  :title="formatDate(a.created_at)"
                   class="text-xs font-medium text-slate-500 dark:text-slate-400"
                 >
-                  {{ formatDate(a.created_at) }}
+                  {{ timeAgo(a.created_at) }}
                 </time>
                 <span
                   data-testid="history-item-intensity"
@@ -193,6 +250,14 @@ onMounted(() => {
               >
                 {{ localizedSymptom(a.primary_symptom) }}
               </h2>
+
+              <p
+                v-if="symptomSummary(a)"
+                data-testid="history-item-summary"
+                class="mt-0.5 text-sm text-slate-600 dark:text-slate-400 line-clamp-2"
+              >
+                {{ symptomSummary(a) }}
+              </p>
 
               <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 <div v-if="a.body_area">

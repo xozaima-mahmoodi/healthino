@@ -93,6 +93,13 @@ const lastAssessment = ref(null)
 const summaryCopied = ref(false)
 let summaryCopiedTimer = null
 
+// AI feedback micro-interaction on the result card: 'up' | 'down' | null.
+// Clicking the active choice again clears it (toggle).
+const feedbackType = ref(null)
+function setFeedback(type) {
+  feedbackType.value = feedbackType.value === type ? null : type
+}
+
 function clearTriageTimers() {
   for (const id of triageTimers) clearTimeout(id)
   triageTimers = []
@@ -329,6 +336,7 @@ function startNewAssessment() {
   clearTimeout(summaryCopiedTimer)
   showDoctorsList.value = false
   summaryCopied.value = false
+  feedbackType.value = null
   symptomStore.reset()
 }
 
@@ -1490,6 +1498,55 @@ async function submit() {
         </div>
       </Transition>
 
+      <!-- AI feedback micro-interaction -->
+      <div class="no-print flex flex-col items-center gap-2 my-4" data-testid="feedback-widget">
+        <span class="text-xs text-slate-400 dark:text-slate-500">
+          {{ t('symptom_form.feedback_prompt') }}
+        </span>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            data-testid="feedback-up"
+            :aria-pressed="feedbackType === 'up'"
+            :aria-label="t('symptom_form.feedback_helpful')"
+            :title="t('symptom_form.feedback_helpful')"
+            @click="setFeedback('up')"
+            :class="[
+              'p-2 border rounded-xl transition-all duration-200 hover:scale-110 active:scale-95',
+              feedbackType === 'up'
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 feedback-pop'
+                : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-200/40 text-slate-400 dark:text-slate-500'
+            ]"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 10v12"/>
+              <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/>
+            </svg>
+          </button>
+          <button
+            type="button"
+            data-testid="feedback-down"
+            :aria-pressed="feedbackType === 'down'"
+            :aria-label="t('symptom_form.feedback_not_helpful')"
+            :title="t('symptom_form.feedback_not_helpful')"
+            @click="setFeedback('down')"
+            :class="[
+              'p-2 border rounded-xl transition-all duration-200 hover:scale-110 active:scale-95',
+              feedbackType === 'down'
+                ? 'bg-rose-500/10 text-rose-500 border-rose-500/30 feedback-pop'
+                : 'bg-slate-50/50 dark:bg-slate-800/30 border-slate-200/40 text-slate-400 dark:text-slate-500'
+            ]"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 14V2"/>
+              <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <button
         type="button"
         data-testid="new-assessment-button"
@@ -1772,6 +1829,19 @@ async function submit() {
 </template>
 
 <style scoped>
+/* One-time pop when a feedback choice becomes active. */
+@keyframes feedback-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.feedback-pop {
+  animation: feedback-pop 300ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .feedback-pop { animation: none; }
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 220ms ease;

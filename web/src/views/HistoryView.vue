@@ -5,11 +5,15 @@ import { useRoute, RouterLink } from 'vue-router'
 import GlobalHeader from '../components/GlobalHeader.vue'
 import { useHistoryStore } from '../stores/history'
 import { useAuthStore } from '../stores/auth'
+import { useToastStore } from '../stores/toast'
+import { useHealthReport } from '../composables/useHealthReport'
 
 const { t, locale } = useI18n()
 const route = useRoute()
 const historyStore = useHistoryStore()
 const authStore = useAuthStore()
+const toast = useToastStore()
+const { printHealthReport } = useHealthReport()
 
 const DATE_LOCALE_TAGS = { fa: 'fa-IR', ckb: 'ckb-Arab', en: 'en-US' }
 
@@ -110,6 +114,36 @@ function symptomSummary(a) {
   return [localizedSymptom(a.primary_symptom), a.additional_info]
     .filter(Boolean)
     .join(' · ')
+}
+
+// Export a past log as a branded PDF via the shared report composable. We map
+// the stored assessment into the normalized record it expects; `first_aid` is
+// not persisted with old assessments, so we fall back to the default care tips.
+function exportHistoryItem(a) {
+  const r = a.result || {}
+  const isEmergency = !!r.red_flag || r.specialty?.slug === 'emergency'
+  const careActions = Array.isArray(r.first_aid) && r.first_aid.length
+    ? r.first_aid
+    : [
+        t('symptom_form.first_aid.default_1'),
+        t('symptom_form.first_aid.default_2'),
+        t('symptom_form.first_aid.default_3')
+      ]
+  const ok = printHealthReport({
+    urgencyKey: isEmergency ? 'emergency' : 'routine',
+    urgencyLabel: t(isEmergency ? 'symptom_form.urgency_emergency' : 'symptom_form.urgency_routine'),
+    redFlag: !!r.red_flag,
+    symptoms: [localizedSymptom(a.primary_symptom), a.additional_info].filter(Boolean),
+    severity: Number.isFinite(a.intensity) ? a.intensity : null,
+    bodyArea: a.body_area ? localizedBodyArea(a.body_area) : '',
+    durationHours: Number.isFinite(a.duration_hours) ? a.duration_hours : null,
+    specialtyName: r.specialty?.name || null,
+    careActions,
+    doctors: r.doctors || [],
+    refId: `HLT-${r.symptom_log_id || a.id}`,
+    issuedAt: a.created_at
+  })
+  if (!ok) toast.error(t('toast.unexpected_error'))
 }
 
 onMounted(() => {
@@ -235,13 +269,36 @@ onMounted(() => {
                 >
                   {{ timeAgo(a.created_at) }}
                 </time>
-                <span
-                  data-testid="history-item-intensity"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
-                  :class="intensityTone(a.intensity)"
-                >
-                  {{ t('history.intensity_label') }}: {{ a.intensity }}/10
-                </span>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="history-item-export"
+                    @click="exportHistoryItem(a)"
+                    :aria-label="t('symptom_form.report.download')"
+                    :title="t('symptom_form.report.download')"
+                    class="inline-flex items-center justify-center p-1.5 rounded-lg
+                           bg-emerald-500/10 dark:bg-emerald-500/20
+                           border border-emerald-500/30
+                           text-emerald-600 dark:text-emerald-400
+                           hover:bg-emerald-500/20 active:scale-95
+                           transition-all duration-300 backdrop-blur-sm"
+                  >
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <path d="M14 2v6h6"/>
+                      <path d="M12 12v6"/>
+                      <path d="m9 15 3 3 3-3"/>
+                    </svg>
+                  </button>
+                  <span
+                    data-testid="history-item-intensity"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                    :class="intensityTone(a.intensity)"
+                  >
+                    {{ t('history.intensity_label') }}: {{ a.intensity }}/10
+                  </span>
+                </div>
               </div>
 
               <h2

@@ -23,7 +23,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <header class="sticky top-3 z-40 px-4">
+  <header class="no-print sticky top-3 z-40 px-4">
     <div class="max-w-7xl mx-auto my-4 rounded-2xl py-2.5 px-6
                 flex items-center justify-between gap-2 sm:gap-3
                 bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl

@@ -197,6 +197,13 @@
     "feedback_prompt": "Was this assessment helpful to you?",
     "feedback_helpful": "Helpful",
     "feedback_not_helpful": "Not helpful",
+    "med_guard": {
+      "title": "Smart medication interaction & safety check (experimental)",
+      "placeholder": "Type a medicine name and press Enter…",
+      "remove": "Remove medication",
+      "checking": "Checking for drug interactions…",
+      "safe": "Safety shield active: no known drug interaction was found with your current symptoms. Always consult your doctor."
+    },
     "summary_heading": "📋 Healthino triage summary",
     "summary_symptoms": "Symptoms",
     "summary_severity": "Severity",

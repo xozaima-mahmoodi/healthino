@@ -100,6 +100,38 @@ function setFeedback(type) {
   feedbackType.value = feedbackType.value === type ? null : type
 }
 
+// ── Medication safety / interaction checker (simulated) ────────────────
+// A lightweight, front-end-only guard: the user tags medications and we show a
+// reassuring "no known interaction" status after a brief shimmer. This does NOT
+// call any real interaction database — it's an experimental UX affordance, hence
+// the "(آزمایشی)" label and the "consult your doctor" copy.
+const medications = ref([])
+const medicationInput = ref('')
+const guardChecking = ref(false)
+let guardTimer = null
+
+function addMedication() {
+  const name = medicationInput.value.trim()
+  medicationInput.value = ''
+  if (!name) return
+  if (medications.value.some((m) => m.toLowerCase() === name.toLowerCase())) return
+  medications.value.push(name)
+}
+function removeMedication(index) {
+  medications.value.splice(index, 1)
+}
+
+// Re-run the faux "AI guard" scan whenever the tag set changes.
+watch(() => medications.value.length, (len) => {
+  clearTimeout(guardTimer)
+  if (len > 0) {
+    guardChecking.value = true
+    guardTimer = setTimeout(() => { guardChecking.value = false }, 900)
+  } else {
+    guardChecking.value = false
+  }
+})
+
 function clearTriageTimers() {
   for (const id of triageTimers) clearTimeout(id)
   triageTimers = []
@@ -337,6 +369,10 @@ function startNewAssessment() {
   showDoctorsList.value = false
   summaryCopied.value = false
   feedbackType.value = null
+  clearTimeout(guardTimer)
+  guardChecking.value = false
+  medications.value = []
+  medicationInput.value = ''
   symptomStore.reset()
 }
 
@@ -500,6 +536,7 @@ onBeforeUnmount(() => {
   clearTriageTimers()
   clearTimeout(doctorsRevealTimer)
   clearTimeout(summaryCopiedTimer)
+  clearTimeout(guardTimer)
   window.removeEventListener('keydown', onKeydown)
   if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
@@ -1497,6 +1534,92 @@ async function submit() {
           </button>
         </div>
       </Transition>
+
+      <!-- Medication Safety & Interaction Checker (experimental, front-end only) -->
+      <div
+        class="no-print p-4 bg-slate-50/50 dark:bg-slate-800/10
+               border border-slate-200/40 dark:border-white/10 rounded-2xl
+               max-w-xl mx-auto my-6"
+        data-testid="med-guard"
+      >
+        <h3 class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+          <svg class="h-4 w-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          {{ t('symptom_form.med_guard.title') }}
+        </h3>
+
+        <div class="flex flex-wrap items-center">
+          <span
+            v-for="(med, i) in medications"
+            :key="`${i}-${med}`"
+            data-testid="med-tag"
+            class="inline-flex items-center gap-1 px-2.5 py-1 me-1 mb-1
+                   bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700
+                   rounded-lg text-xs text-slate-700 dark:text-slate-200"
+          >
+            {{ med }}
+            <button
+              type="button"
+              :aria-label="t('symptom_form.med_guard.remove')"
+              @click="removeMedication(i)"
+              class="text-slate-400 hover:text-rose-500 transition-colors leading-none"
+            >
+              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </span>
+
+          <input
+            v-model="medicationInput"
+            type="text"
+            data-testid="med-input"
+            :placeholder="t('symptom_form.med_guard.placeholder')"
+            :aria-label="t('symptom_form.med_guard.title')"
+            @keydown.enter.prevent="addMedication"
+            class="flex-1 min-w-[8rem] mb-1 bg-transparent text-xs
+                   text-slate-700 dark:text-slate-200 placeholder-slate-400
+                   focus:outline-none py-1 px-1"
+          />
+        </div>
+
+        <!-- Micro-shimmer while the faux guard "scans" -->
+        <div
+          v-if="guardChecking"
+          data-testid="med-guard-loading"
+          class="mt-3 h-7 rounded-xl overflow-hidden relative bg-slate-100 dark:bg-slate-800/40"
+          role="status"
+          :aria-label="t('symptom_form.med_guard.checking')"
+        >
+          <span
+            aria-hidden="true"
+            class="absolute inset-y-0 left-0 w-1/3
+                   bg-gradient-to-r from-transparent via-white/70 dark:via-white/10 to-transparent
+                   animate-shimmer motion-reduce:hidden"
+          ></span>
+        </div>
+
+        <!-- Premium AI guard status -->
+        <Transition name="fade">
+          <div
+            v-if="medications.length && !guardChecking"
+            data-testid="med-guard-status"
+            class="mt-3 p-2.5 bg-emerald-500/5 border border-emerald-500/20 rounded-xl
+                   flex items-center gap-2 text-[11px] text-emerald-600 dark:text-emerald-400"
+          >
+            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span class="leading-relaxed">{{ t('symptom_form.med_guard.safe') }}</span>
+          </div>
+        </Transition>
+      </div>
 
       <!-- AI feedback micro-interaction -->
       <div class="no-print flex flex-col items-center gap-2 my-4" data-testid="feedback-widget">

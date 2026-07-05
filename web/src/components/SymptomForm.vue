@@ -1414,7 +1414,7 @@ async function submit() {
         <div
           v-if="showDoctorsList"
           data-testid="triage-action-bar"
-          class="no-print absolute top-4 end-4 z-10 flex items-center gap-2"
+          class="no-print absolute top-5 end-4 z-10 flex items-center gap-2"
         >
           <button
             type="button"
@@ -1464,31 +1464,31 @@ async function submit() {
               <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
             </svg>
           </button>
+
+          <!-- Digital Health Pass: minimalist glass PDF export, matching its neighbors -->
+          <button
+            type="button"
+            data-testid="download-report-button"
+            :aria-label="t('symptom_form.report.download')"
+            :title="t('symptom_form.report.download')"
+            @click="downloadReport"
+            class="no-print p-2 bg-white/50 dark:bg-slate-800/40
+                   border border-slate-200/50 dark:border-white/10 rounded-full
+                   text-slate-600 dark:text-slate-300
+                   hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm
+                   active:scale-90 transition-all duration-200
+                   w-9 h-9 flex items-center justify-center"
+          >
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <path d="M14 2v6h6"/>
+              <path d="M12 12v6"/>
+              <path d="m9 15 3 3 3-3"/>
+            </svg>
+          </button>
         </div>
       </Transition>
-
-      <!-- Digital Health Pass: premium glassmorphic PDF export -->
-      <div class="no-print flex justify-center">
-        <button
-          type="button"
-          data-testid="download-report-button"
-          @click="downloadReport"
-          :aria-label="t('symptom_form.report.download')"
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 dark:bg-emerald-500/20
-                 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400
-                 rounded-xl hover:bg-emerald-500/20 transition-all duration-300
-                 active:scale-95 text-sm backdrop-blur-sm"
-        >
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <path d="M14 2v6h6"/>
-            <path d="M12 12v6"/>
-            <path d="m9 15 3 3 3-3"/>
-          </svg>
-          {{ t('symptom_form.report.download') }}
-        </button>
-      </div>
 
       <button
         type="button"

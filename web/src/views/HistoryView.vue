@@ -201,7 +201,7 @@ onMounted(() => {
         <ol
           v-else
           data-testid="history-timeline"
-          class="relative ms-4 ps-6 sm:ps-8
+          class="relative ms-4 ps-8
                  border-s-2 border-dashed border-slate-200 dark:border-slate-700/60"
         >
           <li
@@ -214,7 +214,7 @@ onMounted(() => {
             <span
               data-testid="history-item-severity"
               :data-severity="severityCategory(a)"
-              class="absolute -start-[9px] sm:-start-[10px] top-5 h-3.5 w-3.5 rounded-full
+              class="absolute -start-10 top-5 z-10 h-3.5 w-3.5 rounded-full
                      ring-4 ring-white dark:ring-slate-950"
               :class="severityDotClass(a)"
               aria-hidden="true"

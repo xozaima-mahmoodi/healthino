@@ -57,6 +57,11 @@ export default {
         shimmer: {
           '0%':        { transform: 'translateX(-160%) skewX(-12deg)' },
           '55%, 100%': { transform: 'translateX(320%) skewX(-12deg)' }
+        },
+        // Capsules and toasts rise gently into place while fading in.
+        'fade-in-up': {
+          '0%':   { opacity: '0', transform: 'translateY(12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' }
         }
       },
       animation: {
@@ -64,7 +69,8 @@ export default {
         'aura-drift':     'aura-drift 22s ease-in-out infinite',
         'aura-drift-alt': 'aura-drift-alt 28s ease-in-out infinite',
         'aura-breathe':   'aura-breathe 19s ease-in-out infinite',
-        shimmer:          'shimmer 3s ease-in-out infinite'
+        shimmer:          'shimmer 3s ease-in-out infinite',
+        'fade-in-up':     'fade-in-up 300ms cubic-bezier(0.16, 1, 0.3, 1)'
       }
     }
   },

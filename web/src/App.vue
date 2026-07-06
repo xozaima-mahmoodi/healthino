@@ -10,6 +10,7 @@ import { useGlobalErrorBoundary } from './composables/useGlobalErrorBoundary'
 import { logResolvedBaseUrl } from './api/client'
 import ToastContainer from './components/ToastContainer.vue'
 import IdleWarningModal from './components/IdleWarningModal.vue'
+import NetworkStatusBanner from './components/NetworkStatusBanner.vue'
 
 const { t } = useI18n()
 const localeStore = useLocaleStore()
@@ -74,4 +75,5 @@ onMounted(async () => {
   <RouterView />
   <ToastContainer />
   <IdleWarningModal />
+  <NetworkStatusBanner />
 </template>

@@ -153,6 +153,8 @@
     "context_words": "words",
     "context_hint_more": "Add a little more detail for better accuracy",
     "context_hint_good": "Enough detail provided",
+    "ai_estimate_ready": "Ready for instant analysis",
+    "ai_estimate_time": "Analysis time: ~{seconds}s",
     "attachments_label": "Upload medical documents (optional)",
     "attachments_hint": "Click to choose files or drop them here",
     "attachments_types": "Images and PDFs — multiple files supported",

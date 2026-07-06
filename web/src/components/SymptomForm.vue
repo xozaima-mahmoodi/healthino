@@ -488,6 +488,45 @@ const additionalInfoWordCount = computed(() => {
 })
 const hasEnoughContext = computed(() => additionalInfoWordCount.value >= 3)
 
+// Dynamic AI processing-time estimate shown beside the word counter. It scales
+// gently with how much the user has written — a tiny bit of premium feedback
+// that makes the upcoming analysis feel considered rather than instantaneous.
+const aiEstimateSeconds = computed(() => {
+  const len = form.additionalInfo.trim().length
+  if (len === 0) return 0
+  // Base ~2s, then a second per ~90 chars, capped so it never feels alarming.
+  return Math.min(9, 2 + Math.floor(len / 90))
+})
+
+// Localises digits to match the active language (Persian ۰-۹, Sorani ٠-٩, Latin).
+const localizeDigits = (value) => {
+  const sets = { fa: '۰۱۲۳۴۵۶۷۸۹', ckb: '٠١٢٣٤٥٦٧٨٩' }
+  const set = sets[localeStore.current]
+  return set ? String(value).replace(/\d/g, (d) => set[d]) : String(value)
+}
+
+const aiEstimateText = computed(() =>
+  aiEstimateSeconds.value === 0
+    ? t('symptom_form.ai_estimate_ready')
+    : t('symptom_form.ai_estimate_time', { seconds: localizeDigits(aiEstimateSeconds.value) })
+)
+
+// Pulses the badge only while the user is actively typing, then settles once
+// they pause. The timer is cleared on unmount so it can't fire into a dead view.
+const isTypingContext = ref(false)
+let typingSettleTimer = null
+const noteContextTyping = () => {
+  isTypingContext.value = true
+  if (typingSettleTimer !== null) clearTimeout(typingSettleTimer)
+  typingSettleTimer = setTimeout(() => {
+    isTypingContext.value = false
+    typingSettleTimer = null
+  }, 900)
+}
+onBeforeUnmount(() => {
+  if (typingSettleTimer !== null) clearTimeout(typingSettleTimer)
+})
+
 // Derives the triage urgency tier from the result for the premium status badge.
 const triageUrgency = computed(() => {
   const r = symptomStore.result
@@ -860,29 +899,48 @@ async function submit() {
               {{ t('symptom_form.additional_info_label') }}
             </label>
 
-            <!-- Smart context micro-indicator: amber until enough detail, then emerald -->
-            <span
-              data-testid="context-indicator"
-              :title="hasEnoughContext ? t('symptom_form.context_hint_good') : t('symptom_form.context_hint_more')"
-              class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1
-                     bg-slate-100/60 dark:bg-slate-800/50 backdrop-blur-sm
-                     border border-slate-200/60 dark:border-white/10
-                     text-[11px] font-medium tracking-wide text-slate-500 dark:text-slate-400
-                     transition-all duration-300 ease-in-out"
-            >
+            <div class="flex items-center gap-2">
+              <!-- Smart context micro-indicator: amber until enough detail, then emerald -->
               <span
-                class="h-2 w-2 rounded-full transition-all duration-300 ease-in-out"
-                :class="hasEnoughContext
-                  ? 'bg-emerald-500 shadow-[0_0_8px_2px_rgba(16,185,129,0.6)]'
-                  : 'bg-amber-400 shadow-[0_0_7px_1px_rgba(251,191,36,0.5)]'"
-              ></span>
-              <span class="tabular-nums">{{ additionalInfoWordCount }} {{ t('symptom_form.context_words') }}</span>
-            </span>
+                data-testid="context-indicator"
+                :title="hasEnoughContext ? t('symptom_form.context_hint_good') : t('symptom_form.context_hint_more')"
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1
+                       bg-slate-100/60 dark:bg-slate-800/50 backdrop-blur-sm
+                       border border-slate-200/60 dark:border-white/10
+                       text-[11px] font-medium tracking-wide text-slate-500 dark:text-slate-400
+                       transition-all duration-300 ease-in-out"
+              >
+                <span
+                  class="h-2 w-2 rounded-full transition-all duration-300 ease-in-out"
+                  :class="hasEnoughContext
+                    ? 'bg-emerald-500 shadow-[0_0_8px_2px_rgba(16,185,129,0.6)]'
+                    : 'bg-amber-400 shadow-[0_0_7px_1px_rgba(251,191,36,0.5)]'"
+                ></span>
+                <span class="tabular-nums">{{ additionalInfoWordCount }} {{ t('symptom_form.context_words') }}</span>
+              </span>
+
+              <!-- Dynamic AI processing-time estimate; breathes only while typing -->
+              <span
+                data-testid="ai-estimate-badge"
+                :class="{ 'animate-pulse': isTypingContext }"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full
+                       bg-emerald-500/10 dark:bg-emerald-500/20
+                       text-[10px] font-medium text-emerald-600 dark:text-emerald-400
+                       border border-emerald-500/20 shadow-sm transition-all duration-300"
+              >
+                <svg class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2.5l1.9 4.6 4.6 1.9-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.9L12 2.5z" />
+                  <path d="M18.5 14l.85 2.05L21.5 17l-2.15.95L18.5 20l-.85-2.05L15.5 17l2.15-.95L18.5 14z" opacity="0.85" />
+                </svg>
+                <span>{{ aiEstimateText }}</span>
+              </span>
+            </div>
           </div>
           <textarea
             v-model="form.additionalInfo"
             data-testid="additional-info-input"
             rows="3"
+            @input="noteContextTyping"
             :placeholder="t('symptom_form.additional_info_placeholder')"
             class="w-full px-4 py-3 rounded-xl resize-y
                    bg-white/40 dark:bg-slate-900/40 backdrop-blur-sm shadow-sm

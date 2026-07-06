@@ -153,6 +153,8 @@
     "context_words": "کلمه",
     "context_hint_more": "برای دقت بیشتر کمی توضیح دهید",
     "context_hint_good": "توضیحات کافی است",
+    "ai_estimate_ready": "آماده پردازش آنی",
+    "ai_estimate_time": "زمان تحلیل: ~{seconds} ثانیه",
     "attachments_label": "آپلود مدارک پزشکی (اختیاری)",
     "attachments_hint": "برای انتخاب فایل کلیک کنید یا فایل‌ها را اینجا رها کنید",
     "attachments_types": "تصاویر و PDF — چند فایل پشتیبانی می‌شود",

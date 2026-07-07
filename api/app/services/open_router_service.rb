@@ -2,34 +2,51 @@ require "base64"
 require "json"
 require "faraday"
 
-# Talks to the Gemini generateContent API through our Cloudflare Worker reverse
-# proxy (see cloudflare-worker/worker.js). The proxy forwards verbatim to
-# https://generativelanguage.googleapis.com, which lets us reach Gemini from
-# regions where Google blocks direct access.
+# Talks to OpenRouter's OpenAI-compatible Chat Completions API to analyze a
+# patient's uploaded medical document (lab result, imaging report, prescription)
+# and return a short summary plus follow-up questions.
 #
-# Only the base URL changes: the path, headers and JSON body are exactly what
-# Google expects, so the proxy stays a dumb pass-through.
-class GeminiService
+# OpenRouter speaks the OpenAI wire format, so the request is a standard
+# `messages` array and the response is read from `choices[0].message.content`.
+# The document itself is attached to the user turn as a data-URL content part:
+# images ride in an `image_url` part; PDFs ride in a `file` part. Provider/model
+# is a single string (e.g. "anthropic/claude-3.5-sonnet"), so switching models
+# is a config change, not a code change.
+#
+# The base URL is configurable (OPENROUTER_BASE_URL). It defaults to OpenRouter
+# directly, but can be pointed at a reverse proxy for regions where the endpoint
+# is blocked — the previous Gemini integration relied on exactly such a proxy.
+class OpenRouterService
   class ConfigurationError < StandardError; end
   # Raised for network timeouts, connection failures and non-2xx responses so
   # callers can degrade gracefully instead of leaking Faraday internals.
   class ApiError < StandardError; end
 
-  # gemini-2.5-flash is multimodal (handles images + PDFs) and cheap/fast, which
-  # fits the single-document analysis flow. The 1.5 line is retired and now
-  # returns HTTP 404 from generateContent. Override with GEMINI_MODEL if needed.
-  DEFAULT_MODEL  = "gemini-2.5-flash"
+  # A premium, stable default. Any OpenRouter model slug works; override with
+  # OPENROUTER_MODEL to flip models without a deploy.
+  DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+  DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+
+  # Only image and PDF documents are supported. NOTE: PDF ingestion via the chat
+  # API is model-dependent — Anthropic (Claude) models accept PDFs natively, but
+  # a model without PDF vision will ignore or reject the file. Keep this aligned
+  # with the configured model.
   SUPPORTED_MIME = ->(m) { m.to_s.start_with?("image/") || m.to_s == "application/pdf" }
 
-  # Fail fast on a dead/blocked proxy, but give the model room to think.
+  # Fail fast on a dead endpoint, but give the model room to think.
   OPEN_TIMEOUT = 5   # seconds to establish the connection
   READ_TIMEOUT = 45  # seconds to wait for the full response
+
+  # Recommended OpenRouter attribution headers (surface the app on their
+  # dashboard/rankings). Harmless if omitted; overridable via env.
+  DEFAULT_REFERER = "https://healthino.app"
+  DEFAULT_TITLE   = "Healthino AI"
 
   SUPPORTED_LOCALES = %w[fa ckb en].freeze
   DEFAULT_LOCALE    = "fa"
 
-  # Human-readable language name injected into the prompt so Gemini responds in
-  # the patient's selected UI language regardless of the document's language.
+  # Human-readable language name injected into the prompt so the model responds
+  # in the patient's selected UI language regardless of the document's language.
   LOCALE_LANGUAGE = {
     "fa"  => "Persian (Farsi)",
     "ckb" => "Central Kurdish (Sorani)",
@@ -64,26 +81,27 @@ class GeminiService
     SUPPORTED_LOCALES.include?(loc) ? loc : DEFAULT_LOCALE
   end
 
-  # Opt-in offline switch (GEMINI_STUB=1). Lets the frontend exercise the full
-  # document-analysis flow without a reachable proxy or API key — e.g. when
-  # Google is geo-blocked and the Worker isn't deployed yet. This is explicit
-  # only: it is never on by default, in any environment.
+  # Opt-in offline switch (AI_STUB=1). Lets the frontend exercise the full
+  # document-analysis flow without a reachable endpoint or API key. This is
+  # explicit only: it is never on by default, in any environment.
   def self.stub_enabled?
-    ActiveModel::Type::Boolean.new.cast(ENV["GEMINI_STUB"]) || false
+    ActiveModel::Type::Boolean.new.cast(ENV["AI_STUB"]) || false
   end
 
-  def initialize(api_key: nil, model: nil, proxy_url: nil)
+  def initialize(api_key: nil, model: nil, base_url: nil, referer: nil, title: nil)
     @api_key = api_key ||
-               Rails.application.credentials.dig(:gemini, :api_key) ||
-               ENV["GEMINI_API_KEY"]
-    @proxy_url = (proxy_url || ENV["GEMINI_PROXY_URL"]).to_s.strip.chomp("/")
-    @model = model || ENV["GEMINI_MODEL"].presence || DEFAULT_MODEL
+               Rails.application.credentials.dig(:open_router, :api_key) ||
+               ENV["OPENROUTER_API_KEY"]
+    @base_url = (base_url || ENV["OPENROUTER_BASE_URL"].presence || DEFAULT_BASE_URL).to_s.strip.chomp("/")
+    @model = model || ENV["OPENROUTER_MODEL"].presence || DEFAULT_MODEL
+    @referer = referer || ENV["OPENROUTER_REFERER"].presence || DEFAULT_REFERER
+    @title = title || ENV["OPENROUTER_TITLE"].presence || DEFAULT_TITLE
 
     # In stub mode we never call the API, so missing config is fine.
     return if self.class.stub_enabled?
 
-    raise ConfigurationError, "GEMINI_PROXY_URL is not configured" if @proxy_url.blank?
-    raise ConfigurationError, "GEMINI_API_KEY is not configured"   if @api_key.blank?
+    raise ConfigurationError, "OPENROUTER_BASE_URL is not configured" if @base_url.blank?
+    raise ConfigurationError, "OPENROUTER_API_KEY is not configured"  if @api_key.blank?
   end
 
   # Returns a Hash with "summary" (String) and "questions" (Array<String>),
@@ -104,25 +122,45 @@ class GeminiService
     encoded = Base64.strict_encode64(file.read.to_s)
 
     body = {
-      contents: [
+      model: @model,
+      # System turn carries the instructions; the user turn carries the document
+      # as a data-URL part. This preserves the OpenAI (system/user/assistant)
+      # message contract OpenRouter expects.
+      messages: [
+        { role: "system", content: prompt },
         {
           role: "user",
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: mime, data: encoded } }
+          content: [
+            { type: "text", text: "Analyze the attached medical document." },
+            document_part(mime, encoded)
           ]
         }
       ],
-      generationConfig: { responseMimeType: "application/json" }
+      # OpenAI-compatible structured-output hint (the analogue of Gemini's
+      # responseMimeType: application/json).
+      response_format: { type: "json_object" }
     }
 
-    parse_structured(extract_text(generate_content(body)))
+    parse_structured(extract_text(create_completion(body)))
   end
 
   private
 
-  # Canned, localized response used only when GEMINI_STUB is on. Mirrors the
-  # real { "summary", "questions" } contract (a CBC/iron panel consistent with
+  # Wraps the document as an OpenAI-style content part. Images use `image_url`;
+  # PDFs use the `file` part with a base64 data URL.
+  def document_part(mime, encoded)
+    if mime == "application/pdf"
+      {
+        type: "file",
+        file: { filename: "document.pdf", file_data: "data:application/pdf;base64,#{encoded}" }
+      }
+    else
+      { type: "image_url", image_url: { url: "data:#{mime};base64,#{encoded}" } }
+    end
+  end
+
+  # Canned, localized response used only when AI_STUB is on. Mirrors the real
+  # { "summary", "questions" } contract (a CBC/iron panel consistent with
   # iron-deficiency anemia) so the UI flow can be built offline.
   STUB_ANALYSIS = {
     "fa" => {
@@ -153,39 +191,40 @@ class GeminiService
 
   def stub_analysis(locale = DEFAULT_LOCALE)
     loc = self.class.normalize_locale(locale)
-    Rails.logger.warn("[GeminiService] GEMINI_STUB on — returning canned analysis (locale: #{loc})")
+    Rails.logger.warn("[OpenRouterService] AI_STUB on — returning canned analysis (locale: #{loc})")
     STUB_ANALYSIS.fetch(loc, STUB_ANALYSIS[DEFAULT_LOCALE])
   end
 
-  # POSTs to {proxy}/v1beta/models/{model}:generateContent. The API key travels
-  # in the x-goog-api-key header (not the query string) so it stays out of proxy
-  # and access logs. Returns the parsed response Hash.
-  def generate_content(body)
-    response = connection.post("v1beta/models/#{@model}:generateContent") do |req|
-      req.headers["x-goog-api-key"] = @api_key
+  # POSTs to {base}/chat/completions with Bearer auth and OpenRouter's optional
+  # attribution headers. Returns the parsed response Hash.
+  def create_completion(body)
+    response = connection.post("chat/completions") do |req|
+      req.headers["Authorization"] = "Bearer #{@api_key}"
+      req.headers["HTTP-Referer"]  = @referer
+      req.headers["X-Title"]       = @title
       req.body = body
     end
 
     unless response.success?
       detail = response.body.is_a?(Hash) ? response.body.dig("error", "message") : response.body
-      Rails.logger.error("[GeminiService] Gemini API #{response.status}: #{detail}")
-      raise ApiError, "gemini_api_error (HTTP #{response.status})"
+      Rails.logger.error("[OpenRouterService] OpenRouter API #{response.status}: #{detail}")
+      raise ApiError, "openrouter_api_error (HTTP #{response.status})"
     end
 
     response.body.is_a?(Hash) ? response.body : JSON.parse(response.body.to_s)
   rescue Faraday::TimeoutError => e
-    Rails.logger.error("[GeminiService] request timed out: #{e.message}")
-    raise ApiError, "gemini_timeout"
+    Rails.logger.error("[OpenRouterService] request timed out: #{e.message}")
+    raise ApiError, "openrouter_timeout"
   rescue Faraday::ConnectionFailed => e
-    Rails.logger.error("[GeminiService] could not reach proxy #{@proxy_url}: #{e.message}")
-    raise ApiError, "gemini_unreachable"
+    Rails.logger.error("[OpenRouterService] could not reach endpoint #{@base_url}: #{e.message}")
+    raise ApiError, "openrouter_unreachable"
   rescue Faraday::Error => e
-    Rails.logger.error("[GeminiService] transport error: #{e.class}: #{e.message}")
-    raise ApiError, "gemini_request_failed"
+    Rails.logger.error("[OpenRouterService] transport error: #{e.class}: #{e.message}")
+    raise ApiError, "openrouter_request_failed"
   end
 
   def connection
-    @connection ||= Faraday.new(url: "#{@proxy_url}/") do |f|
+    @connection ||= Faraday.new(url: "#{@base_url}/") do |f|
       f.request :json
       f.response :json, content_type: /\bjson/
       f.options.open_timeout = OPEN_TIMEOUT
@@ -193,22 +232,22 @@ class GeminiService
     end
   end
 
+  # Reads the assistant's text from the OpenAI-shaped response.
   def extract_text(response)
-    parts = response.dig("candidates", 0, "content", "parts") || []
-    parts.map { |p| p["text"] }.compact.join("\n").strip
+    response.dig("choices", 0, "message", "content").to_s.strip
   end
 
   # Parses the model's text into a normalized { "summary", "questions" } hash,
-  # tolerating markdown fences or stray prose around the JSON object. If Gemini
-  # returns malformed JSON, we never crash the request: we fall back to surfacing
-  # the raw text as the summary so the client still gets a usable response.
+  # tolerating markdown fences or stray prose around the JSON object. If the
+  # model returns malformed JSON, we never crash the request: we fall back to
+  # surfacing the raw text as the summary so the client still gets a response.
   def parse_structured(text)
     data =
       begin
         json = extract_json_object(text)
         json ? JSON.parse(json) : {}
       rescue JSON::ParserError => e
-        Rails.logger.warn("[GeminiService] JSON parse failed, using raw fallback: #{e.message}")
+        Rails.logger.warn("[OpenRouterService] JSON parse failed, using raw fallback: #{e.message}")
         {}
       end
     data = {} unless data.is_a?(Hash)

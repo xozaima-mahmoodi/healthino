@@ -25,19 +25,19 @@ module Api
           return
         end
 
-        analysis = GeminiService.new.analyze_document(file, locale: request_locale)
+        analysis = OpenRouterService.new.analyze_document(file, locale: request_locale)
         render json: {
           summary: analysis["summary"],
           questions: analysis["questions"]
         }
-      rescue GeminiService::ConfigurationError => e
-        Rails.logger.error("[GeminiService] #{e.message}")
+      rescue OpenRouterService::ConfigurationError => e
+        Rails.logger.error("[OpenRouterService] #{e.message}")
         render json: { error: "service_unconfigured" }, status: :service_unavailable
       rescue ArgumentError => e
-        Rails.logger.warn("[GeminiService] ArgumentError: #{e.message}")
+        Rails.logger.warn("[OpenRouterService] ArgumentError: #{e.message}")
         render json: { error: e.message }, status: :unprocessable_content
       rescue StandardError => e
-        Rails.logger.error("[GeminiService] #{e.class}: #{e.message}")
+        Rails.logger.error("[OpenRouterService] #{e.class}: #{e.message}")
         Rails.logger.error(e.backtrace.first(20).join("\n")) if e.backtrace
         message = Rails.env.production? ? "analysis_failed" : "#{e.class}: #{e.message}"
         render json: { error: message }, status: :bad_gateway

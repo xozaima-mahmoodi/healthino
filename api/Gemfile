@@ -27,6 +27,10 @@ gem "thruster", require: false
 
 gem "rack-cors"
 
+# Loads api/.env into ENV in development/test so config like OPENROUTER_API_KEY
+# is available to the app. (.env is gitignored — secrets stay out of the repo.)
+gem "dotenv-rails", "~> 3.1", groups: %i[development test]
+
 # HTTP client for the Gemini reverse-proxy integration (app/services/gemini_service.rb).
 # Already resolved transitively, declared here because we now depend on it directly.
 gem "faraday", "~> 2.13"

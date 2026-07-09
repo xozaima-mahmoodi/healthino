@@ -92,14 +92,23 @@ RSpec.describe OpenRouterService do
       expect(captured[:headers]["HTTP-Referer"]).to eq("https://healthino.app")
       expect(captured[:headers]["X-Title"]).to eq("Healthino AI")
 
-      expect(captured[:body]["model"]).to eq("anthropic/claude-3.5-sonnet")
+      expect(captured[:body]["model"]).to eq("google/gemini-2.5-flash")
       expect(captured[:body]["response_format"]).to eq("type" => "json_object")
+      # Bounded so the free/low-credit tier's affordability check passes; without
+      # it OpenRouter reserves the model's full (65535-token) max output.
+      expect(captured[:body]["max_tokens"]).to eq(2000)
 
       messages = captured[:body]["messages"]
       expect(messages.first["role"]).to eq("system")
       expect(messages.first["content"]).to include("medical assistant")
 
       user_parts = messages.last["content"]
+      # The user turn reinforces JSON-only + the target language (locale "en"
+      # here), so weak models that under-weight the system prompt still comply.
+      text_part = user_parts.find { |p| p["type"] == "text" }
+      expect(text_part["text"]).to include("English")
+      expect(text_part["text"]).to match(/JSON/i)
+
       image_part = user_parts.find { |p| p["type"] == "image_url" }
       data_url = image_part.dig("image_url", "url")
       expect(data_url).to start_with("data:image/png;base64,")
@@ -204,6 +213,108 @@ RSpec.describe OpenRouterService do
 
       expect { service.analyze_document(fake_file, locale: "en") }
         .to raise_error(OpenRouterService::ApiError, /HTTP 500/)
+    end
+
+    it "logs the full upstream response body on an error (e.g. 503 no-credits)" do
+      body = JSON.generate("error" => { "message" => "Insufficient credits", "code" => 402 })
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          [503, { "Content-Type" => "application/json" }, body]
+        end
+      end
+
+      allow(Rails.logger).to receive(:error)
+      allow(Rails.logger).to receive(:warn)
+
+      expect { service.analyze_document(fake_file, locale: "en") }
+        .to raise_error(OpenRouterService::ApiError, /HTTP 503/)
+
+      expect(Rails.logger).to have_received(:error)
+        .with(/HTTP 503.*Insufficient credits.*response body:.*Insufficient credits/m)
+        .at_least(:once)
+    end
+  end
+
+  describe "#analyze_document multi-model fallback" do
+    it "rolls over to the next candidate model when one fails, and returns its result" do
+      seen_models = []
+      calls = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do |env|
+          seen_models << JSON.parse(env.request_body)["model"]
+          calls += 1
+          if calls == 1
+            [503, { "Content-Type" => "application/json" }, JSON.generate("error" => { "message" => "temporarily unavailable" })]
+          else
+            [200, { "Content-Type" => "application/json" }, ok_body(summary: "From fallback", questions: ["a", "b", "c"])]
+          end
+        end
+      end
+
+      result = service.analyze_document(fake_file, locale: "en")
+
+      expect(result["summary"]).to eq("From fallback")
+      # First the configured model, then the next candidate after the 503.
+      expect(seen_models[0]).to eq("google/gemini-2.5-flash")
+      expect(seen_models[1]).to eq("meta-llama/llama-3.2-11b-vision-instruct")
+    end
+
+    it "rolls over past a 502 with a RAW STRING body (no #dig crash) to the next model" do
+      # An upstream gateway 502 returns text/html, so the json middleware leaves
+      # the body a raw String. This must not crash on #dig; it must raise ApiError
+      # and let the fallback loop advance to the next candidate.
+      calls = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          calls += 1
+          if calls == 1
+            [502, { "Content-Type" => "text/html" }, "<html><body>502 Bad Gateway</body></html>"]
+          else
+            [200, { "Content-Type" => "application/json" }, ok_body(summary: "Recovered", questions: ["a", "b", "c"])]
+          end
+        end
+      end
+
+      result = service.analyze_document(fake_file, locale: "en")
+      expect(result["summary"]).to eq("Recovered")
+    end
+
+    it "treats a 2xx with a non-JSON String body as an ApiError so the loop stays safe" do
+      # A 200 whose body slipped past the json middleware as plain text must not
+      # surface a bare JSON::ParserError; it becomes an ApiError and rolls over.
+      calls = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          calls += 1
+          if calls == 1
+            [200, { "Content-Type" => "text/plain" }, "not json at all"]
+          else
+            [200, { "Content-Type" => "application/json" }, ok_body(summary: "Recovered", questions: ["a", "b", "c"])]
+          end
+        end
+      end
+
+      allow(Rails.logger).to receive(:error)
+      allow(Rails.logger).to receive(:warn)
+
+      result = service.analyze_document(fake_file, locale: "en")
+      expect(result["summary"]).to eq("Recovered")
+    end
+
+    it "raises an aggregated ApiError only after every candidate model fails" do
+      seen_models = []
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do |env|
+          seen_models << JSON.parse(env.request_body)["model"]
+          [503, { "Content-Type" => "application/json" }, JSON.generate("error" => { "message" => "no endpoints" })]
+        end
+      end
+
+      expect { service.analyze_document(fake_file, locale: "en") }
+        .to raise_error(OpenRouterService::ApiError, /all_models_failed/)
+
+      # Both distinct candidates were attempted before giving up.
+      expect(seen_models.uniq).to eq(OpenRouterService::MODELS.to_a)
     end
 
     it "raises ApiError on a network timeout" do

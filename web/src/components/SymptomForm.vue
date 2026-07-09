@@ -214,7 +214,14 @@ async function analyzeDocuments() {
       headers: {
         'Content-Type': 'multipart/form-data',
         'Accept-Language': localeStore.current
-      }
+      },
+      // Document analysis is a long-running AI call: the backend allows up to
+      // ~45s PER model and falls back across multiple models, so a slow 200 can
+      // legitimately take well over a minute. The client's default 15s timeout
+      // would abort a request the server ultimately completes, surfacing a false
+      // error toast. Give this one call plenty of headroom past the server's
+      // worst-case fallback chain.
+      timeout: 120000
     })
     documentSummary.value = (data && data.summary) || ''
     setDocumentQuestions(data && data.questions)

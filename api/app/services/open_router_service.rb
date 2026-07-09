@@ -22,9 +22,31 @@ class OpenRouterService
   # callers can degrade gracefully instead of leaking Faraday internals.
   class ApiError < StandardError; end
 
-  # A premium, stable default. Any OpenRouter model slug works; override with
-  # OPENROUTER_MODEL to flip models without a deploy.
-  DEFAULT_MODEL = "anthropic/claude-3.5-sonnet"
+  # Ordered list of vision-capable models to try. Each reads IMAGES (as
+  # `image_url` data-URLs) and PDFs (as `file` parts) — the exact shapes
+  # document_part builds below — so the payload stays valid across the whole
+  # chain, and a transient failure on the leading model rolls over to the next.
+  # This array is authoritative: ENV["OPENROUTER_MODEL"] is intentionally NOT
+  # consulted, so changing models means editing this list (a deploy).
+  #
+  # NOTE: an endpoint can still rate-limit or briefly 429/503/502 under load;
+  # that's a transient upstream state, not a payload problem — hence the fallback
+  # chain. Model availability/pricing on OpenRouter changes over time; keep these
+  # slugs in sync with the currently-active tiers.
+  #
+  # ORDER MATTERS for output QUALITY, not just availability. We lead with Gemini
+  # 2.5 Flash because it reliably honors response_format: json_object AND the
+  # "answer in Persian/Sorani" instruction — which is what actually drives the
+  # structured questionnaire popup. The Llama 3.2 vision models are kept as
+  # fallbacks: they respond, but tend to ignore JSON-mode and reply in English,
+  # which collapses to a raw-text summary with no questions (no popup).
+  MODELS = [
+    "google/gemini-2.5-flash",
+    "meta-llama/llama-3.2-11b-vision-instruct",
+    "meta-llama/llama-3.2-90b-vision-instruct"
+  ].freeze
+
+  DEFAULT_MODEL = MODELS.first
   DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
   # Only image and PDF documents are supported. NOTE: PDF ingestion via the chat
@@ -53,8 +75,14 @@ class OpenRouterService
     "en"  => "English"
   }.freeze
 
+  # Human-readable language name for a (already-normalized) locale, used both in
+  # the system prompt and to reinforce the target language in the user turn.
+  def self.language_for(locale)
+    LOCALE_LANGUAGE.fetch(locale, LOCALE_LANGUAGE[DEFAULT_LOCALE])
+  end
+
   def self.build_prompt(locale)
-    language = LOCALE_LANGUAGE.fetch(locale, LOCALE_LANGUAGE[DEFAULT_LOCALE])
+    language = language_for(locale)
     <<~PROMPT
       You are a medical assistant reviewing a patient's uploaded medical document
       (such as a lab result, imaging report, or prescription).
@@ -71,7 +99,8 @@ class OpenRouterService
       - "questions" must contain exactly 3 specific follow-up questions for the patient,
         directly based on the findings (e.g. clarifying symptoms, timeline, or medications).
       - Write the "summary" and every "questions" entry entirely in #{language},
-        regardless of the language used in the document.
+        regardless of the language used in the document. Do NOT answer in English
+        unless #{language} is English.
       - Respond with the JSON object only, without markdown fences or any extra text.
     PROMPT
   end
@@ -93,7 +122,12 @@ class OpenRouterService
                Rails.application.credentials.dig(:open_router, :api_key) ||
                ENV["OPENROUTER_API_KEY"]
     @base_url = (base_url || ENV["OPENROUTER_BASE_URL"].presence || DEFAULT_BASE_URL).to_s.strip.chomp("/")
-    @model = model || ENV["OPENROUTER_MODEL"].presence || DEFAULT_MODEL
+    # The MODELS array is authoritative. We deliberately IGNORE
+    # ENV["OPENROUTER_MODEL"] so a stale/misconfigured env override can't bypass
+    # the vetted free-tier array (this is what kept pinning gemini-2.5-flash as
+    # the lead model). An explicit constructor `model:` still leads when passed
+    # (used in tests); otherwise candidate_models runs purely through MODELS.
+    @model = model
     @referer = referer || ENV["OPENROUTER_REFERER"].presence || DEFAULT_REFERER
     @title = title || ENV["OPENROUTER_TITLE"].presence || DEFAULT_TITLE
 
@@ -114,6 +148,7 @@ class OpenRouterService
 
     loc = self.class.normalize_locale(locale)
     prompt ||= self.class.build_prompt(loc)
+    language = self.class.language_for(loc)
 
     # Short-circuit to canned data when the offline switch is on.
     return stub_analysis(loc) if self.class.stub_enabled?
@@ -121,30 +156,67 @@ class OpenRouterService
     file.rewind if file.respond_to?(:rewind)
     encoded = Base64.strict_encode64(file.read.to_s)
 
-    body = {
-      model: @model,
-      # System turn carries the instructions; the user turn carries the document
-      # as a data-URL part. This preserves the OpenAI (system/user/assistant)
-      # message contract OpenRouter expects.
-      messages: [
-        { role: "system", content: prompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Analyze the attached medical document." },
-            document_part(mime, encoded)
-          ]
-        }
-      ],
+    # System turn carries the instructions; the user turn carries the document as
+    # a data-URL part. This preserves the OpenAI (system/user/assistant) message
+    # contract OpenRouter expects.
+    messages = [
+      { role: "system", content: prompt },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze the attached medical document. Respond with the JSON object only (keys \"summary\" and \"questions\"), and write every value in #{language}." },
+          document_part(mime, encoded)
+        ]
+      }
+    ]
+
+    parse_structured(extract_text(complete_with_fallback(messages)))
+  end
+
+  private
+
+  # The models to try, in order. This is MODELS verbatim unless an explicit
+  # constructor `model:` was passed (then it leads). ENV["OPENROUTER_MODEL"] is
+  # intentionally NOT consulted here. A transient failure on one model rolls over
+  # to the next. De-duplicated and order-preserving.
+  def candidate_models
+    ([@model] + MODELS).map { |m| m.to_s.strip }.reject(&:blank?).uniq
+  end
+
+  # Tries each candidate model in turn. ANY per-model failure — an ApiError
+  # (non-2xx like 402/502/503), a transport error, or an unexpected exception
+  # (e.g. a #dig/JSON surprise on a raw HTML/text gateway body) — is caught,
+  # logged, and we advance to the next model. Nothing thrown while handling one
+  # model is allowed to abort the whole sequence. Only when every candidate has
+  # failed do we surface an aggregated error to the caller.
+  def complete_with_fallback(messages)
+    failures = []
+    candidate_models.each do |model|
+      return create_completion(build_body(model, messages))
+    rescue => e
+      failures << "#{model} → #{e.class}: #{e.message}"
+      Rails.logger.warn("[OpenRouterService] model #{model} failed (#{e.class}: #{e.message}); trying next candidate")
+      next
+    end
+
+    Rails.logger.error("[OpenRouterService] all #{failures.size} candidate models failed: #{failures.join(" | ")}")
+    raise ApiError, "openrouter_all_models_failed (#{failures.join(" | ")})"
+  end
+
+  def build_body(model, messages)
+    {
+      model: model,
+      messages: messages,
+      # Hardcoded modest cap so the free/low-credit tier's affordability check
+      # passes; without it OpenRouter reserves the model's full max output
+      # (e.g. 65535) and rejects the request up-front. 2000 is ample for our
+      # small JSON output (a short summary + 3 questions).
+      max_tokens: 2000,
       # OpenAI-compatible structured-output hint (the analogue of Gemini's
       # responseMimeType: application/json).
       response_format: { type: "json_object" }
     }
-
-    parse_structured(extract_text(create_completion(body)))
   end
-
-  private
 
   # Wraps the document as an OpenAI-style content part. Images use `image_url`;
   # PDFs use the `file` part with a base64 data URL.
@@ -206,12 +278,57 @@ class OpenRouterService
     end
 
     unless response.success?
-      detail = response.body.is_a?(Hash) ? response.body.dig("error", "message") : response.body
-      Rails.logger.error("[OpenRouterService] OpenRouter API #{response.status}: #{detail}")
+      # Log the exact upstream response verbatim so 401/402/429/503 (bad key, no
+      # credits, rate limit, model unavailable) are debuggable from the Rails
+      # console. We serialize the full body — a parsed Hash pretty-prints, a raw
+      # string passes through — rather than only the nested error.message.
+      #
+      # OpenRouter's own app-level errors arrive as a Hash ({ "error" => {...} }),
+      # but an upstream GATEWAY failure (502 Bad Gateway / 504) or an in-region
+      # proxy often returns a RAW STRING (HTML or plain text) that never went
+      # through the json middleware. #dig exists on Hash, not String, so we only
+      # reach for the nested message when the body is actually a Hash; a String
+      # body is treated as the raw error text. Either way we raise ApiError below
+      # so complete_with_fallback rolls over to the next candidate model.
+      body     = response.body
+      raw_body = body.is_a?(String) ? body : body.inspect
+      # Only Hash exposes a nested error message. Guarded AND wrapped: a String
+      # (HTML/text from a 502/504 gateway) or any other non-Hash never reaches
+      # #dig, and even an unexpected object can't raise here.
+      message  =
+        begin
+          body.is_a?(Hash) ? body.dig("error", "message") : nil
+        rescue StandardError
+          nil
+        end
+
+      # Print the exact upstream body straight to the server stdout/terminal for
+      # quick eyeballing during debugging (in addition to the structured log).
+      puts "--- OPENROUTER ERROR BODY: #{raw_body} ---"
+
+      Rails.logger.error(
+        "[OpenRouterService] OpenRouter API error HTTP #{response.status}" \
+        "#{" — #{message}" if message.present?}\n" \
+        "[OpenRouterService] response body: #{raw_body}"
+      )
       raise ApiError, "openrouter_api_error (HTTP #{response.status})"
     end
 
-    response.body.is_a?(Hash) ? response.body : JSON.parse(response.body.to_s)
+    # Happy path: the json middleware already parsed a Hash. If a 2xx slips
+    # through with a non-Hash body (a raw String from a proxy/CDN, or JSON that
+    # decodes to a non-object), we parse defensively and raise ApiError — never a
+    # bare JSON::ParserError/TypeError — so the fallback loop advances cleanly.
+    body = response.body
+    return body if body.is_a?(Hash)
+
+    parsed = JSON.parse(body.to_s)
+    return parsed if parsed.is_a?(Hash)
+
+    Rails.logger.error("[OpenRouterService] 2xx body was not a JSON object: #{body.inspect}")
+    raise ApiError, "openrouter_unexpected_body"
+  rescue JSON::ParserError => e
+    Rails.logger.error("[OpenRouterService] 2xx body was not valid JSON: #{e.message}")
+    raise ApiError, "openrouter_unparseable_body"
   rescue Faraday::TimeoutError => e
     Rails.logger.error("[OpenRouterService] request timed out: #{e.message}")
     raise ApiError, "openrouter_timeout"
@@ -232,8 +349,13 @@ class OpenRouterService
     end
   end
 
-  # Reads the assistant's text from the OpenAI-shaped response.
+  # Reads the assistant's text from the OpenAI-shaped response. create_completion
+  # only ever returns a Hash, but we guard the type anyway: #dig belongs to Hash,
+  # and calling it on a String (NoMethodError) or an Array-with-string-keys
+  # (TypeError) would crash outside the ApiError rescue. A non-Hash yields "".
   def extract_text(response)
+    return "" unless response.is_a?(Hash)
+
     response.dig("choices", 0, "message", "content").to_s.strip
   end
 

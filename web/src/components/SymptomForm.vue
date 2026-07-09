@@ -29,12 +29,14 @@ const ACCEPTED_TYPES = 'image/*,application/pdf'
 
 const GENDER_OPTIONS = ['male', 'female']
 
-// Cinematic triage status steps shown while the AI request is in flight.
-const TRIAGE_STEPS = [
-  '🔍 در حال آنالیز و رمزگشایی کلمات کلیدی علائم شما...',
-  '⚡ در حال برقراری اتصال امن با هسته مرکزی...',
-  '🩺 در حال تطبیق پروتکل‌های تریاژ و ارزیابی فوریت‌های پزشکی...'
-]
+// Cinematic triage status steps shown while the AI request is in flight. The
+// text is localized via i18n (reactive to the active locale); the leading emoji
+// is language-neutral and stays in the component.
+const TRIAGE_STEPS = computed(() => [
+  `🔍 ${t('symptom_form.triage_steps.analyzing')}`,
+  `⚡ ${t('symptom_form.triage_steps.connecting')}`,
+  `🩺 ${t('symptom_form.triage_steps.matching')}`
+])
 
 const initialFormState = () => ({
   symptomChoice: '',

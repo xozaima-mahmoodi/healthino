@@ -193,6 +193,11 @@
     "medication_details_placeholder": "e.g. metformin, aspirin…",
     "submit": "Analyze symptoms",
     "analyzing": "Analyzing…",
+    "triage_steps": {
+      "analyzing": "Analyzing and decoding your symptom keywords…",
+      "connecting": "Establishing a secure connection to the core…",
+      "matching": "Matching triage protocols and assessing medical urgency…"
+    },
     "submit_error_title": "Submission failed",
     "submit_error_generic": "Something went wrong. Please check your connection and try again.",
     "new_assessment": "New assessment",

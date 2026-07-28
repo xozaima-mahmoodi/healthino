@@ -91,16 +91,36 @@ class OpenRouterService
       this shape:
       {
         "summary": "<a brief, plain-language summary of the key findings>",
-        "questions": ["<question 1>", "<question 2>", "<question 3>"]
+        "questions": ["<question 1>", "<question 2>", "<question 3>"],
+        "vital_badges": [
+          { "label": "<indicator name>", "value": "<value or range>", "status": "normal", "icon": "🩸" }
+        ]
       }
 
       Rules:
       - "summary" must be 1-3 short sentences describing the main findings.
       - "questions" must contain exactly 3 specific follow-up questions for the patient,
         directly based on the findings (e.g. clarifying symptoms, timeline, or medications).
-      - Write the "summary" and every "questions" entry entirely in #{language},
-        regardless of the language used in the document. Do NOT answer in English
-        unless #{language} is English.
+      - "vital_badges" must be an array of 2 to 4 objects, each capturing a key vital
+        sign or clinical indicator (e.g. blood sugar, hemoglobin, vitamin D, blood
+        pressure, cholesterol, white blood cells). Extract the actual values found in
+        the document. If the document contains no measurable indicators, infer 2-3 key
+        health indicators from the described symptoms instead — never return an empty
+        array. Each object must have exactly these keys:
+          * "label": the indicator name, written in #{language}.
+          * "value": the measured value or range as a short string (e.g. "11.5 mg/dL"),
+            or a qualitative word in #{language} (e.g. the localized equivalent of
+            "normal") when no number is available.
+          * "status": STRICTLY one of "normal", "warning", or "critical" — lowercase
+            English only. Use "normal" when the value is within the healthy range,
+            "warning" when mildly out of range or borderline, and "critical" when
+            severely abnormal or clinically urgent.
+          * "icon": a single medical emoji relevant to the indicator (e.g. "🩸", "🧪",
+            "❤️", "☀️", "🫁", "🦴").
+      - Write the "summary", every "questions" entry, and every badge "label"/"value"
+        entirely in #{language}, regardless of the language used in the document. Do NOT
+        answer in English unless #{language} is English. The badge "status" is the only
+        field that stays in English.
       - Respond with the JSON object only, without markdown fences or any extra text.
     PROMPT
   end
@@ -138,8 +158,8 @@ class OpenRouterService
     raise ConfigurationError, "OPENROUTER_API_KEY is not configured"  if @api_key.blank?
   end
 
-  # Returns a Hash with "summary" (String) and "questions" (Array<String>),
-  # written in the requested locale (fa / ckb / en).
+  # Returns a Hash with "summary" (String), "questions" (Array<String>), and
+  # "vital_badges" (Array<Hash>), written in the requested locale (fa / ckb / en).
   def analyze_document(file, locale: nil, prompt: nil)
     raise ArgumentError, "file is required" if file.blank?
 
@@ -164,7 +184,7 @@ class OpenRouterService
       {
         role: "user",
         content: [
-          { type: "text", text: "Analyze the attached medical document. Respond with the JSON object only (keys \"summary\" and \"questions\"), and write every value in #{language}." },
+          { type: "text", text: "Analyze the attached medical document. Respond with the JSON object only (keys \"summary\", \"questions\", and \"vital_badges\"), and write every value in #{language} (badge \"status\" stays in English)." },
           document_part(mime, encoded)
         ]
       }
@@ -241,6 +261,11 @@ class OpenRouterService
         "آیا احساس خستگی مفرط یا سرگیجه در طول روز دارید؟",
         "آیا در رژیم غذایی خود از منابع آهن مانند گوشت قرمز یا سبزیجات برگ‌سبز استفاده می‌کنید؟",
         "آیا اخیراً خونریزی غیرعادی (مثلاً قاعدگی شدید یا مشکلات گوارشی) داشته‌اید؟"
+      ],
+      "vital_badges" => [
+        { "label" => "هموگلوبین", "value" => "10.2 g/dL", "status" => "warning", "icon" => "🩸" },
+        { "label" => "فریتین", "value" => "8 ng/mL", "status" => "critical", "icon" => "🧪" },
+        { "label" => "قند خون", "value" => "95 mg/dL", "status" => "normal", "icon" => "🍬" }
       ]
     },
     "en" => {
@@ -249,6 +274,11 @@ class OpenRouterService
         "Do you feel excessive fatigue or dizziness during the day?",
         "Does your diet include iron sources such as red meat or leafy green vegetables?",
         "Have you had any unusual bleeding recently (e.g. heavy menstruation or digestive issues)?"
+      ],
+      "vital_badges" => [
+        { "label" => "Hemoglobin", "value" => "10.2 g/dL", "status" => "warning", "icon" => "🩸" },
+        { "label" => "Ferritin", "value" => "8 ng/mL", "status" => "critical", "icon" => "🧪" },
+        { "label" => "Blood Sugar", "value" => "95 mg/dL", "status" => "normal", "icon" => "🍬" }
       ]
     },
     "ckb" => {
@@ -257,6 +287,11 @@ class OpenRouterService
         "ئایا بە درێژایی ڕۆژ هەست بە ماندووبوونی زۆر یان سەرگێژە دەکەیت؟",
         "ئایا لە خۆراکەکەتدا سەرچاوەی ئاسن وەک گۆشتی سوور یان سەوزەی گەڵا سەوز هەیە؟",
         "ئایا ئەم دواییە خوێنبەربوونی نائاسایت هەبووە (بۆ نموونە سووڕی مانگانەی قورس یان کێشەی گەدە)؟"
+      ],
+      "vital_badges" => [
+        { "label" => "هیمۆگلۆبین", "value" => "10.2 g/dL", "status" => "warning", "icon" => "🩸" },
+        { "label" => "فێریتین", "value" => "8 ng/mL", "status" => "critical", "icon" => "🧪" },
+        { "label" => "شەکری خوێن", "value" => "95 mg/dL", "status" => "normal", "icon" => "🍬" }
       ]
     }
   }.freeze
@@ -376,12 +411,42 @@ class OpenRouterService
 
     summary = data["summary"].to_s.strip
     questions = Array(data["questions"]).map { |q| q.to_s.strip }.reject(&:blank?)
+    vital_badges = normalize_badges(data["vital_badges"])
 
     # Fallback: if the model ignored the JSON contract, surface the raw text as
     # the summary so the client still gets something useful.
     summary = text.to_s.strip if summary.blank? && questions.empty?
 
-    { "summary" => summary, "questions" => questions }
+    { "summary" => summary, "questions" => questions, "vital_badges" => vital_badges }
+  end
+
+  # Valid badge statuses (drive the coloured pill in the UI). Anything the model
+  # returns outside this set — a typo, a translated word, a missing value — is
+  # coerced to "normal" so the frontend never has to guard against junk.
+  BADGE_STATUSES = %w[normal warning critical].freeze
+  DEFAULT_BADGE_STATUS = "normal"
+
+  # Normalizes the model's `vital_badges` into a clean array of
+  # { "label", "value", "status", "icon" } hashes. Tolerant of missing keys,
+  # non-array input, and non-hash entries; drops any entry with a blank label so
+  # the UI only ever renders meaningful pills.
+  def normalize_badges(raw)
+    Array(raw).filter_map do |b|
+      next unless b.is_a?(Hash)
+
+      label = b["label"].to_s.strip
+      next if label.blank?
+
+      status = b["status"].to_s.strip.downcase
+      status = DEFAULT_BADGE_STATUS unless BADGE_STATUSES.include?(status)
+
+      {
+        "label"  => label,
+        "value"  => b["value"].to_s.strip,
+        "status" => status,
+        "icon"   => b["icon"].to_s.strip
+      }
+    end
   end
 
   def extract_json_object(text)

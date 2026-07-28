@@ -28,7 +28,8 @@ module Api
         analysis = OpenRouterService.new.analyze_document(file, locale: request_locale)
         render json: {
           summary: analysis["summary"],
-          questions: analysis["questions"]
+          questions: analysis["questions"],
+          vital_badges: analysis["vital_badges"]
         }
       rescue OpenRouterService::ConfigurationError => e
         Rails.logger.error("[OpenRouterService] #{e.message}")

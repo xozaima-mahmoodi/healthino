@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { nextTick } from 'vue'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import SymptomForm from '../src/components/SymptomForm.vue'
 import faMessages from '../src/locales/fa.json'
 import { useSymptomStore } from '../src/stores/symptom'
+import { api } from '../src/api/client'
 import { makeTestPlugins } from './helpers.js'
 
 async function fillRequired(wrapper, { symptom = 'headache', area = 'head', hours = 3 } = {}) {
@@ -277,6 +278,87 @@ describe('SymptomForm — medical document upload', () => {
 
     await wrapper.find('[data-testid="attachment-remove"]').trigger('click')
     expect(wrapper.find('[data-testid="attachments-preview"]').exists()).toBe(false)
+  })
+})
+
+describe('SymptomForm — analyze-documents button loading state', () => {
+  const imageFile = () => new File(['bytes'], 'lab.png', { type: 'image/png' })
+
+  // `api` is a module singleton, so a spy on api.post survives across tests and
+  // would accumulate call counts. Restore after each test for isolation.
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('disables the button and swaps in the spinner while analysis is in flight', async () => {
+    const wrapper = await mountForm()
+    await selectFiles(wrapper, [imageFile()])
+
+    // Hold the request open so we can observe the in-flight state.
+    let resolvePost
+    const postSpy = vi
+      .spyOn(api, 'post')
+      .mockImplementation(() => new Promise((resolve) => { resolvePost = resolve }))
+
+    const btn = wrapper.find('[data-testid="analyze-documents-button"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="analyze-documents-spinner"]').exists()).toBe(false)
+
+    await btn.trigger('click')
+    await nextTick()
+
+    // In flight: request fired once, button disabled, spinner shown.
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/assessments/analyze_document',
+      expect.anything(),
+      expect.anything()
+    )
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="analyze-documents-spinner"]').exists()).toBe(true)
+
+    // Resolve → state clears: re-enabled, spinner gone.
+    resolvePost({ data: { summary: 'خلاصه', questions: ['q1', 'q2', 'q3'] } })
+    await flushPromises()
+
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="analyze-documents-spinner"]').exists()).toBe(false)
+  })
+
+  it('re-enables the button and hides the spinner when the request fails', async () => {
+    const wrapper = await mountForm()
+    await selectFiles(wrapper, [imageFile()])
+
+    let rejectPost
+    vi.spyOn(api, 'post')
+      .mockImplementation(() => new Promise((_, reject) => { rejectPost = reject }))
+
+    const btn = wrapper.find('[data-testid="analyze-documents-button"]')
+    await btn.trigger('click')
+    await nextTick()
+    expect(btn.attributes('disabled')).toBeDefined()
+
+    rejectPost(new Error('network down'))
+    await flushPromises()
+
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="analyze-documents-spinner"]').exists()).toBe(false)
+  })
+
+  it('ignores repeated clicks while a request is already in flight (no double-trigger)', async () => {
+    const wrapper = await mountForm()
+    await selectFiles(wrapper, [imageFile()])
+
+    const postSpy = vi
+      .spyOn(api, 'post')
+      .mockImplementation(() => new Promise(() => {})) // never settles
+
+    const btn = wrapper.find('[data-testid="analyze-documents-button"]')
+    await btn.trigger('click')
+    await nextTick()
+    await btn.trigger('click')
+    await btn.trigger('click')
+    await nextTick()
+
+    expect(postSpy).toHaveBeenCalledTimes(1)
   })
 })
 

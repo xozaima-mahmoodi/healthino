@@ -68,6 +68,10 @@ const isDragging = ref(false)
 const isAnalyzing = ref(false)
 const documentSummary = ref('')
 const documentQuestions = ref([])
+// Visual Health Badges (کارت‌های هوشمند سنجش علائم حیاتی): key vital signs /
+// clinical indicators the AI extracts from the uploaded document, each carrying
+// a normal/warning/critical status that drives its colour.
+const documentBadges = ref([])
 const userAnswers = reactive({})
 const showQuestionsModal = ref(false)
 const answersSubmitted = ref(false)
@@ -158,6 +162,32 @@ function setDocumentQuestions(questions) {
   answersSubmitted.value = false
 }
 
+// Defensively normalizes the AI's vital_badges payload: keeps only well-formed
+// entries (a non-empty label) and clamps status to the known set so the class
+// map below can never miss.
+const BADGE_STATUSES = ['normal', 'warning', 'critical']
+function setDocumentBadges(badges) {
+  const list = Array.isArray(badges) ? badges : []
+  documentBadges.value = list
+    .filter(b => b && typeof b === 'object' && String(b.label || '').trim())
+    .map(b => ({
+      label: String(b.label).trim(),
+      value: String(b.value ?? '').trim(),
+      status: BADGE_STATUSES.includes(b.status) ? b.status : 'normal',
+      icon: String(b.icon ?? '').trim()
+    }))
+}
+
+// Tailwind classes per status: soft tinted background, matching border + text.
+const BADGE_CLASSES = {
+  normal: 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800/60',
+  warning: 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800/60',
+  critical: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60'
+}
+function badgeClasses(status) {
+  return BADGE_CLASSES[status] || BADGE_CLASSES.normal
+}
+
 function openQuestionsModal() {
   if (documentQuestions.value.length) showQuestionsModal.value = true
 }
@@ -227,6 +257,7 @@ async function analyzeDocuments() {
     })
     documentSummary.value = (data && data.summary) || ''
     setDocumentQuestions(data && data.questions)
+    setDocumentBadges(data && data.vital_badges)
     if (documentSummary.value || documentQuestions.value.length) {
       toast.success(t('toast.document_analysis_success'))
       openQuestionsModal()
@@ -277,6 +308,7 @@ function removeAttachment(id) {
   if (!form.attachments.length) {
     documentSummary.value = ''
     setDocumentQuestions([])
+    setDocumentBadges([])
     showQuestionsModal.value = false
   }
 }
@@ -363,6 +395,7 @@ function resetForm() {
   isDragging.value = false
   documentSummary.value = ''
   setDocumentQuestions([])
+  setDocumentBadges([])
   showQuestionsModal.value = false
   closePreview()
   isAnalyzing.value = false
@@ -1148,6 +1181,40 @@ async function submit() {
               class="sr-only"
               @change="onFileChange"
             />
+          </div>
+
+          <!-- Visual Health Badges: key vital signs / indicators extracted by the
+               AI, colour-coded by status. Fully defensive: renders only when the
+               array exists and is non-empty. -->
+          <div
+            v-if="documentBadges && documentBadges.length"
+            data-testid="vital-badges"
+            class="mt-3"
+          >
+            <div class="text-[13px] font-semibold tracking-wide text-brand-dark dark:text-emerald-300 mb-2">
+              {{ t('symptom_form.vital_badges_title') }}
+            </div>
+            <div class="flex flex-wrap gap-2.5">
+              <div
+                v-for="(badge, i) in documentBadges"
+                :key="`${badge.label}-${i}`"
+                data-testid="vital-badge"
+                :data-status="badge.status"
+                :style="{ animationDelay: `${i * 80}ms` }"
+                :class="[
+                  'group inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2',
+                  'shadow-soft backdrop-blur-sm animate-fade-in-up',
+                  'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-soft-md',
+                  badgeClasses(badge.status)
+                ]"
+              >
+                <span v-if="badge.icon" class="text-lg leading-none shrink-0" aria-hidden="true">{{ badge.icon }}</span>
+                <span class="flex flex-col leading-tight text-start">
+                  <span class="text-[11px] font-medium opacity-80">{{ badge.label }}</span>
+                  <span v-if="badge.value" class="text-sm font-bold tabular-nums">{{ badge.value }}</span>
+                </span>
+              </div>
+            </div>
           </div>
 
           <div

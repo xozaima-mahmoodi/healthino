@@ -14,6 +14,16 @@ rescue ActiveRecord::PendingMigrationError => e
   abort e.to_s.strip
 end
 
+# dotenv loads api/.env in the test environment too, so a developer's local AI
+# backend configuration would otherwise decide what the suite asserts — e.g. an
+# OPENROUTER_MODELS override pointing at a non-OpenRouter backend makes the
+# request-shape specs see bare model slugs instead of the namespaced defaults.
+# Cleared for the whole run so specs are deterministic on any machine and in CI;
+# a spec that wants an override sets it explicitly (and restores it).
+%w[OPENROUTER_MODELS OPENROUTER_MODEL OPENROUTER_BASE_URL AI_STUB].each do |key|
+  ENV.delete(key)
+end
+
 RSpec.configure do |config|
   config.use_transactional_fixtures = true
   config.infer_spec_type_from_file_location!

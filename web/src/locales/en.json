@@ -60,7 +60,12 @@
     "server_unreachable": "Cannot reach the server. Please check your connection and try again.",
     "unexpected_error": "An unexpected error occurred. Please try again.",
     "document_analysis_success": "Document analysis completed successfully.",
-    "document_analysis_error": "Document analysis failed. Please try again."
+    "document_analysis_error": "Document analysis failed. Please try again.",
+    "document_analysis_upstream_blocked": "The AI service is unreachable from this network. Please try again in a moment.",
+    "document_analysis_upstream_unavailable": "The analysis service is temporarily unavailable. Please try again shortly.",
+    "document_analysis_service_unconfigured": "The analysis service is not configured. Please contact support.",
+    "document_analysis_invalid_file": "That file type is not supported. Please upload an image (JPG/PNG) or a PDF.",
+    "document_analysis_empty": "Nothing could be read from this document. Please upload a clearer image."
   },
   "idle_warning": {
     "title": "Session Timeout Warning",

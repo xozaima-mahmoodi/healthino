@@ -22,6 +22,37 @@ class OpenRouterService
   # callers can degrade gracefully instead of leaking Faraday internals.
   class ApiError < StandardError; end
 
+  # Failures that are properties of the HOST, not of the chosen model. Every
+  # candidate in MODELS is requested from the same base URL, so swapping the model
+  # slug cannot change the outcome — the fallback loop short-circuits on these
+  # instead of burning one open-timeout per candidate (3 candidates × 5s = 15s of
+  # dead wait before the user sees an error).
+  class HostLevelError < ApiError; end
+
+  # The request never reached OpenRouter: an intermediary (ISP filter, national
+  # firewall, WAF) answered on its behalf.
+  #
+  # Signature seen in-region (2026-07): a bare 403 whose body is
+  # {"success": false, "error": "Access denied by security policy."} — note this
+  # is NOT OpenRouter's error shape (theirs nests under "error" => {"message"...}).
+  # Reproduce with an unauthenticated GET, which proves it is upstream of auth:
+  #   curl -i https://openrouter.ai/api/v1/models   # => 403, same body, no key sent
+  class UpstreamBlockedError < HostLevelError; end
+
+  # The TCP/TLS connection to the host could not be established at all (DNS
+  # failure, refused, reset). Distinct from a read timeout, which can legitimately
+  # be the model being slow and therefore IS worth retrying on another model.
+  class UpstreamUnreachableError < HostLevelError; end
+
+  # Body markers that identify an interception response rather than a genuine
+  # OpenRouter reply. Matched case-insensitively against the raw body text.
+  BLOCK_MARKERS = [
+    "access denied by security policy",
+    "access denied",
+    "blocked by",
+    "forbidden by policy"
+  ].freeze
+
   # Ordered list of vision-capable models to try. Each reads IMAGES (as
   # `image_url` data-URLs) and PDFs (as `file` parts) — the exact shapes
   # document_part builds below — so the payload stays valid across the whole
@@ -37,16 +68,52 @@ class OpenRouterService
   # ORDER MATTERS for output QUALITY, not just availability. We lead with Gemini
   # 2.5 Flash because it reliably honors response_format: json_object AND the
   # "answer in Persian/Sorani" instruction — which is what actually drives the
-  # structured questionnaire popup. The Llama 3.2 vision models are kept as
-  # fallbacks: they respond, but tend to ignore JSON-mode and reply in English,
-  # which collapses to a raw-text summary with no questions (no popup).
-  MODELS = [
+  # structured questionnaire popup.
+  #
+  # EVERY ENTRY MUST ACCEPT IMAGE INPUT. This chain analyzes uploaded documents,
+  # so a text-only model cannot serve as a fallback no matter how capable it is —
+  # it would receive an image part it cannot read. (Notably llama-3.3-70b-instruct
+  # is text-only and is NOT a valid fallback here, despite being a common suggestion.)
+  #
+  # Verify these slugs against the live catalog with:
+  #   bin/rails openrouter:verify_models
+  #
+  # 2026-07-29: dropped meta-llama/llama-3.2-11b-vision-instruct and
+  # meta-llama/llama-3.2-90b-vision-instruct — OpenRouter now answers both with
+  # 404 "No endpoints found for <slug>", i.e. they have been retired. The chain had
+  # silently degraded to a single working model. claude-3.5-sonnet replaces them:
+  # it reads images AND PDFs natively and is the model this service was originally
+  # migrated onto (commit 1ce738f), so it is known-good for this payload shape.
+  DEFAULT_MODELS = [
     "google/gemini-2.5-flash",
-    "meta-llama/llama-3.2-11b-vision-instruct",
-    "meta-llama/llama-3.2-90b-vision-instruct"
+    "anthropic/claude-3.5-sonnet"
   ].freeze
 
-  DEFAULT_MODEL = MODELS.first
+  # Model slugs are BACKEND-SPECIFIC, and the backend is a deployment choice
+  # (OPENROUTER_BASE_URL). OpenRouter namespaces them ("google/gemini-2.5-flash");
+  # Google's own OpenAI-compatible endpoint wants the bare name
+  # ("gemini-2.5-flash") and 404s on the namespaced form. So when the base URL is
+  # repointed, the model list has to move with it — otherwise every candidate fails
+  # with a slug error and the service looks broken for a config reason.
+  #
+  # OPENROUTER_MODELS (comma-separated, ordered) therefore replaces this list when
+  # set. Note this is deliberately NOT the old singular ENV["OPENROUTER_MODEL"],
+  # which stays ignored: that one existed as a stale leftover that silently pinned
+  # the lead model. This override is plural, explicitly parsed, and logged on use,
+  # so it can never take effect unnoticed.
+  #
+  #   OPENROUTER_MODELS="gemini-2.5-flash,gemini-2.0-flash"
+  def self.models
+    override = ENV["OPENROUTER_MODELS"].to_s.split(",").map(&:strip).reject(&:blank?)
+    return DEFAULT_MODELS if override.empty?
+
+    override.uniq
+  end
+
+  # Kept as a constant for callers/specs that reference the compiled-in default.
+  MODELS = DEFAULT_MODELS
+
+  DEFAULT_MODEL = DEFAULT_MODELS.first
   DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
 
   # Only image and PDF documents are supported. NOTE: PDF ingestion via the chat
@@ -94,34 +161,49 @@ class OpenRouterService
         "questions": ["<question 1>", "<question 2>", "<question 3>"],
         "vital_badges": [
           { "label": "<indicator name>", "value": "<value or range>", "status": "normal", "icon": "🩸" }
+        ],
+        "medical_terms": [
+          { "term": "<technical term exactly as written in the summary>", "definition": "<simple patient-friendly explanation>" }
         ]
       }
 
       Rules:
-      - "summary" must be 1-3 short sentences describing the main findings.
-      - "questions" must contain exactly 3 specific follow-up questions for the patient,
-        directly based on the findings (e.g. clarifying symptoms, timeline, or medications).
-      - "vital_badges" must be an array of 2 to 4 objects, each capturing a key vital
-        sign or clinical indicator (e.g. blood sugar, hemoglobin, vitamin D, blood
-        pressure, cholesterol, white blood cells). Extract the actual values found in
-        the document. If the document contains no measurable indicators, infer 2-3 key
-        health indicators from the described symptoms instead — never return an empty
-        array. Each object must have exactly these keys:
-          * "label": the indicator name, written in #{language}.
-          * "value": the measured value or range as a short string (e.g. "11.5 mg/dL"),
-            or a qualitative word in #{language} (e.g. the localized equivalent of
-            "normal") when no number is available.
-          * "status": STRICTLY one of "normal", "warning", or "critical" — lowercase
-            English only. Use "normal" when the value is within the healthy range,
-            "warning" when mildly out of range or borderline, and "critical" when
-            severely abnormal or clinically urgent.
-          * "icon": a single medical emoji relevant to the indicator (e.g. "🩸", "🧪",
-            "❤️", "☀️", "🫁", "🦴").
-      - Write the "summary", every "questions" entry, and every badge "label"/"value"
-        entirely in #{language}, regardless of the language used in the document. Do NOT
-        answer in English unless #{language} is English. The badge "status" is the only
-        field that stays in English.
-      - Respond with the JSON object only, without markdown fences or any extra text.
+      - "summary": 1-3 short sentences on the main findings.
+      - "questions": exactly 3 specific follow-up questions based on the findings
+        (clarifying symptoms, timeline, or medications).
+      - "vital_badges": 2 to 4 objects, each a key vital sign or clinical indicator
+        (blood sugar, hemoglobin, vitamin D, blood pressure, cholesterol, white blood
+        cells). Use the actual values in the document; if it has no measurable
+        indicators, infer 2-3 from the described symptoms. Never return an empty array.
+        Keys, exactly:
+          * "label": indicator name in #{language}. Max 4 words.
+          * "value": short value or range (e.g. "11.5 mg/dL"), or one qualitative word
+            in #{language} when no number is available.
+          * "status": STRICTLY "normal", "warning", or "critical" — lowercase English.
+            normal = healthy range, warning = borderline, critical = severely abnormal.
+          * "icon": one medical emoji (e.g. "🩸", "🧪", "❤️", "☀️", "🫁", "🦴").
+      - "medical_terms": at most 5 technical terms. Keys, exactly:
+          * "term": copy-paste of a substring of YOUR OWN "summary" text above.
+            CRITICAL: the client locates each "term" inside "summary" by exact string
+            match to attach a tooltip. A "term" that is not a literal substring of
+            "summary" is silently discarded and the patient sees nothing.
+            - Copy the characters from your "summary", which you wrote in #{language}.
+            - Do NOT copy terms from the source document — the document may be in a
+              different language than your summary.
+            - Do NOT translate, transliterate, re-case, or reword the term.
+            - Do NOT use English unless your "summary" itself is in English.
+            Example of the ONLY correct behaviour: if your summary contains
+            "کم‌خونی فقر آهن", then "term" is "کم‌خونی فقر آهن" — never "iron
+            deficiency anemia", even if the document said that.
+          * "definition": one plain sentence in #{language}, UNDER 15 WORDS. Be concise.
+        Pick the terms AFTER writing "summary", by re-reading it and selecting words
+        from it. If "summary" has no technical jargon, return [].
+      - Write "summary", each question, each badge "label"/"value", and each
+        "definition" in #{language}, whatever language the document uses. Do NOT answer
+        in English unless #{language} is English. Only badge "status" and "term" are
+        exempt.
+      - Keep the whole response compact — no filler, no repetition.
+      - Respond with the JSON object only: no markdown fences, no extra text.
     PROMPT
   end
 
@@ -156,10 +238,13 @@ class OpenRouterService
 
     raise ConfigurationError, "OPENROUTER_BASE_URL is not configured" if @base_url.blank?
     raise ConfigurationError, "OPENROUTER_API_KEY is not configured"  if @api_key.blank?
+
+    log_backend_configuration
   end
 
-  # Returns a Hash with "summary" (String), "questions" (Array<String>), and
-  # "vital_badges" (Array<Hash>), written in the requested locale (fa / ckb / en).
+  # Returns a Hash with "summary" (String), "questions" (Array<String>),
+  # "vital_badges" (Array<Hash>), and "medical_terms" (Array<Hash>), written in
+  # the requested locale (fa / ckb / en).
   def analyze_document(file, locale: nil, prompt: nil)
     raise ArgumentError, "file is required" if file.blank?
 
@@ -184,7 +269,7 @@ class OpenRouterService
       {
         role: "user",
         content: [
-          { type: "text", text: "Analyze the attached medical document. Respond with the JSON object only (keys \"summary\", \"questions\", and \"vital_badges\"), and write every value in #{language} (badge \"status\" stays in English)." },
+          { type: "text", text: "Analyze the attached medical document. Respond with the JSON object only (keys \"summary\", \"questions\", \"vital_badges\", and \"medical_terms\"), and write every value in #{language} (badge \"status\" and each term's \"term\" stay as-is)." },
           document_part(mime, encoded)
         ]
       }
@@ -200,7 +285,27 @@ class OpenRouterService
   # intentionally NOT consulted here. A transient failure on one model rolls over
   # to the next. De-duplicated and order-preserving.
   def candidate_models
-    ([@model] + MODELS).map { |m| m.to_s.strip }.reject(&:blank?).uniq
+    ([ @model ] + self.class.models).map { |m| m.to_s.strip }.reject(&:blank?).uniq
+  end
+
+  # Records which backend and model list are actually in play. Both are
+  # deployment-time choices, and a mismatch between them (namespaced slugs against
+  # a non-OpenRouter endpoint, or vice versa) fails every candidate for a reason
+  # that is invisible in the request itself — so it is stated once, up front.
+  def log_backend_configuration
+    return if @logged_backend
+
+    @logged_backend = true
+    if ENV["OPENROUTER_MODELS"].present?
+      Rails.logger.info(
+        "[OpenRouterService] base_url=#{@base_url} | models=#{self.class.models.join(', ')} " \
+        "(OVERRIDDEN via OPENROUTER_MODELS)"
+      )
+    else
+      Rails.logger.info(
+        "[OpenRouterService] base_url=#{@base_url} | models=#{self.class.models.join(', ')} (compiled-in defaults)"
+      )
+    end
   end
 
   # Tries each candidate model in turn. ANY per-model failure — an ApiError
@@ -209,10 +314,23 @@ class OpenRouterService
   # logged, and we advance to the next model. Nothing thrown while handling one
   # model is allowed to abort the whole sequence. Only when every candidate has
   # failed do we surface an aggregated error to the caller.
+  # NOTE the one deliberate exception to "advance on any failure": a
+  # HostLevelError re-raises immediately. When the host is blocked or unreachable,
+  # the model slug in the body is irrelevant — all N candidates share this base URL
+  # and would fail identically, so looping just multiplies the latency (one open
+  # timeout each) and buries the real cause under N duplicate log lines. Fail fast
+  # and let the caller report a network problem instead of a model problem.
   def complete_with_fallback(messages)
     failures = []
     candidate_models.each do |model|
       return create_completion(build_body(model, messages))
+    rescue HostLevelError => e
+      Rails.logger.error(
+        "[OpenRouterService] #{@base_url} is blocked or unreachable (#{e.message}); " \
+        "skipping the remaining candidate models — they share this host, so retrying " \
+        "cannot help. Set OPENROUTER_BASE_URL to a reachable reverse proxy."
+      )
+      raise
     rescue => e
       failures << "#{model} → #{e.class}: #{e.message}"
       Rails.logger.warn("[OpenRouterService] model #{model} failed (#{e.class}: #{e.message}); trying next candidate")
@@ -223,15 +341,44 @@ class OpenRouterService
     raise ApiError, "openrouter_all_models_failed (#{failures.join(" | ")})"
   end
 
+  # True when a non-2xx body looks like an interception page rather than an
+  # OpenRouter error. OpenRouter always nests its message under
+  # "error" => { "message" => ... }; a top-level "error" String plus one of the
+  # BLOCK_MARKERS phrases means something else answered. Kept deliberately narrow
+  # so a genuine OpenRouter 403 (e.g. a disabled key) still rolls over normally.
+  def blocked_response?(status, body, raw_body)
+    return false unless status == 403 || status == 451
+
+    openrouter_shaped =
+      begin
+        body.is_a?(Hash) && body["error"].is_a?(Hash)
+      rescue StandardError
+        false
+      end
+    return false if openrouter_shaped
+
+    haystack = raw_body.to_s.downcase
+    BLOCK_MARKERS.any? { |marker| haystack.include?(marker) }
+  end
+
+  # OpenRouter's signal for a retired or misspelled model slug:
+  #   404 {"error":{"message":"No endpoints found for <slug>.","code":404}}
+  def dead_model_response?(status, raw_body)
+    status == 404 && raw_body.to_s.downcase.include?("no endpoints found")
+  end
+
   def build_body(model, messages)
     {
       model: model,
       messages: messages,
       # Hardcoded modest cap so the free/low-credit tier's affordability check
       # passes; without it OpenRouter reserves the model's full max output
-      # (e.g. 65535) and rejects the request up-front. 2000 is ample for our
-      # small JSON output (a short summary + 3 questions).
-      max_tokens: 2000,
+      # (e.g. 65535) and rejects the request up-front. The output now carries a
+      # summary, 3 questions, up to 4 vital_badges, AND medical_terms — and
+      # non-Latin scripts (Persian/Sorani) cost several tokens per character, so
+      # 2000 truncated the JSON mid-object (the response no longer parsed and the
+      # raw blob leaked into the summary). 4000 gives the full structure room.
+      max_tokens: 4000,
       # OpenAI-compatible structured-output hint (the analogue of Gemini's
       # responseMimeType: application/json).
       response_format: { type: "json_object" }
@@ -266,6 +413,11 @@ class OpenRouterService
         { "label" => "هموگلوبین", "value" => "10.2 g/dL", "status" => "warning", "icon" => "🩸" },
         { "label" => "فریتین", "value" => "8 ng/mL", "status" => "critical", "icon" => "🧪" },
         { "label" => "قند خون", "value" => "95 mg/dL", "status" => "normal", "icon" => "🍬" }
+      ],
+      "medical_terms" => [
+        { "term" => "کم‌خونی فقر آهن", "definition" => "کمبود آهن در بدن که باعث کاهش گلبول‌های قرمز سالم و احساس خستگی می‌شود." },
+        { "term" => "هموگلوبین", "definition" => "پروتئینی در گلبول‌های قرمز که وظیفه‌ی حمل اکسیژن در خون را دارد." },
+        { "term" => "فریتین", "definition" => "شاخصی که نشان می‌دهد چه مقدار آهن در بدن ذخیره شده است." }
       ]
     },
     "en" => {
@@ -279,6 +431,11 @@ class OpenRouterService
         { "label" => "Hemoglobin", "value" => "10.2 g/dL", "status" => "warning", "icon" => "🩸" },
         { "label" => "Ferritin", "value" => "8 ng/mL", "status" => "critical", "icon" => "🧪" },
         { "label" => "Blood Sugar", "value" => "95 mg/dL", "status" => "normal", "icon" => "🍬" }
+      ],
+      "medical_terms" => [
+        { "term" => "iron-deficiency anemia", "definition" => "Too little iron, so you have fewer healthy red blood cells." },
+        { "term" => "hemoglobin", "definition" => "The protein inside red blood cells that carries oxygen around your body." },
+        { "term" => "ferritin", "definition" => "A marker that shows how much iron your body has stored." }
       ]
     },
     "ckb" => {
@@ -292,6 +449,11 @@ class OpenRouterService
         { "label" => "هیمۆگلۆبین", "value" => "10.2 g/dL", "status" => "warning", "icon" => "🩸" },
         { "label" => "فێریتین", "value" => "8 ng/mL", "status" => "critical", "icon" => "🧪" },
         { "label" => "شەکری خوێن", "value" => "95 mg/dL", "status" => "normal", "icon" => "🍬" }
+      ],
+      "medical_terms" => [
+        { "term" => "کەمخوێنی کەمی ئاسن", "definition" => "کەمی ئاسن لە جەستەدا کە خانە سوورەکانی خوێن کەم دەکاتەوە و هەست بە ماندووبوون دەکەیت." },
+        { "term" => "هیمۆگلۆبین", "definition" => "پرۆتیینێک لە خانە سوورەکانی خوێندا کە ئۆکسیجین بۆ جەستە دەگوازێتەوە." },
+        { "term" => "فێریتین", "definition" => "پێوەرێک کە نیشان دەدات چەند ئاسن لە جەستەدا هەڵگیراوە." }
       ]
     }
   }.freeze
@@ -346,6 +508,27 @@ class OpenRouterService
         "#{" — #{message}" if message.present?}\n" \
         "[OpenRouterService] response body: #{raw_body}"
       )
+
+      # Distinguish "an intermediary blocked us" from "OpenRouter rejected us".
+      # Checked before the generic raise so the fallback loop can short-circuit.
+      if blocked_response?(response.status, body, raw_body)
+        raise UpstreamBlockedError,
+              "openrouter_blocked_upstream (HTTP #{response.status} from an intermediary, not OpenRouter)"
+      end
+
+      # A retired/misspelled model slug. This is a CONFIG rot bug, not a transient
+      # one: it will fail identically on every request until MODELS is edited, and
+      # it silently shortens the fallback chain. Logged distinctly so it stands out
+      # from real outages — this is exactly how the chain quietly degraded to one
+      # working model before 2026-07-29.
+      if dead_model_response?(response.status, raw_body)
+        Rails.logger.error(
+          "[OpenRouterService] MODEL SLUG IS DEAD — OpenRouter has no endpoints for this model. " \
+          "Remove or update it in OpenRouterService::MODELS; until then it wastes one " \
+          "round-trip per request. Verify with: bin/rails openrouter:verify_models"
+        )
+      end
+
       raise ApiError, "openrouter_api_error (HTTP #{response.status})"
     end
 
@@ -369,7 +552,9 @@ class OpenRouterService
     raise ApiError, "openrouter_timeout"
   rescue Faraday::ConnectionFailed => e
     Rails.logger.error("[OpenRouterService] could not reach endpoint #{@base_url}: #{e.message}")
-    raise ApiError, "openrouter_unreachable"
+    # Host-level: every candidate model resolves to this same base URL, so there is
+    # nothing for the fallback loop to try.
+    raise UpstreamUnreachableError, "openrouter_unreachable"
   rescue Faraday::Error => e
     Rails.logger.error("[OpenRouterService] transport error: #{e.class}: #{e.message}")
     raise ApiError, "openrouter_request_failed"
@@ -394,17 +579,22 @@ class OpenRouterService
     response.dig("choices", 0, "message", "content").to_s.strip
   end
 
-  # Parses the model's text into a normalized { "summary", "questions" } hash,
-  # tolerating markdown fences or stray prose around the JSON object. If the
-  # model returns malformed JSON, we never crash the request: we fall back to
-  # surfacing the raw text as the summary so the client still gets a response.
+  # Parses the model's text into a normalized
+  # { "summary", "questions", "vital_badges", "medical_terms" } hash, tolerating
+  # markdown fences or stray prose around the JSON object. If the model returns
+  # malformed JSON, we never crash the request.
   def parse_structured(text)
     data =
       begin
         json = extract_json_object(text)
-        json ? JSON.parse(json) : {}
+        json ? parse_json_with_repair(json) : {}
       rescue JSON::ParserError => e
         Rails.logger.warn("[OpenRouterService] JSON parse failed, using raw fallback: #{e.message}")
+        {}
+      rescue StandardError => e
+        # Belt-and-braces: a non-ParserError surprise (encoding, deep nesting)
+        # must still degrade to an empty structure rather than a 500.
+        Rails.logger.warn("[OpenRouterService] unexpected parse failure (#{e.class}: #{e.message}); using raw fallback")
         {}
       end
     data = {} unless data.is_a?(Hash)
@@ -412,12 +602,31 @@ class OpenRouterService
     summary = data["summary"].to_s.strip
     questions = Array(data["questions"]).map { |q| q.to_s.strip }.reject(&:blank?)
     vital_badges = normalize_badges(data["vital_badges"])
+    medical_terms = reject_unlocatable_terms(normalize_medical_terms(data["medical_terms"]), summary)
 
     # Fallback: if the model ignored the JSON contract, surface the raw text as
-    # the summary so the client still gets something useful.
-    summary = text.to_s.strip if summary.blank? && questions.empty?
+    # the summary so the client still gets something useful — BUT never surface a
+    # JSON blob (e.g. a truncated/partial object), otherwise the client would
+    # render raw braces and keys on screen. In that case leave summary blank so
+    # the UI degrades to an empty state rather than garbage.
+    if summary.blank? && questions.empty?
+      raw = text.to_s.strip
+      summary = raw unless looks_like_json?(raw)
+    end
 
-    { "summary" => summary, "questions" => questions, "vital_badges" => vital_badges }
+    {
+      "summary" => summary,
+      "questions" => questions,
+      "vital_badges" => vital_badges,
+      "medical_terms" => medical_terms
+    }
+  end
+
+  # True when the text is (the start of) a JSON object/array, ignoring a leading
+  # ```json code fence. Used to keep raw JSON out of the human-readable summary.
+  def looks_like_json?(text)
+    str = text.to_s.strip.sub(/\A```(?:json)?\s*/i, "").strip
+    str.start_with?("{", "[")
   end
 
   # Valid badge statuses (drive the coloured pill in the UI). Anything the model
@@ -449,12 +658,189 @@ class OpenRouterService
     end
   end
 
+  # Normalizes the model's `medical_terms` into a clean array of
+  # { "term", "definition" } hashes. Tolerant of missing keys, non-array input,
+  # and non-hash entries; drops any entry missing a term or a definition, and
+  # de-duplicates by term (case-insensitive) so the same word isn't decoded
+  # twice in the UI.
+  def normalize_medical_terms(raw)
+    seen = {}
+    Array(raw).each_with_object([]) do |t, acc|
+      next unless t.is_a?(Hash)
+
+      term = t["term"].to_s.strip
+      definition = t["definition"].to_s.strip
+      next if term.blank? || definition.blank?
+
+      key = term.downcase
+      next if seen[key]
+
+      seen[key] = true
+      acc << { "term" => term, "definition" => definition }
+    end
+  end
+
+  # Parses model JSON, retrying once through a repair pass. Small-model output
+  # drifts from strict JSON in two ways we actually observed in the logs:
+  #
+  #   1. A trailing comma before a closing bracket — this produced the real
+  #      "unexpected character: '],' at line 6 column 3" failure on 2026-07-28,
+  #      which silently blanked vital_badges and medical_terms.
+  #   2. Truncation, when the response hits max_tokens mid-object. extract_json_object
+  #      finds no closing "}" for the outermost object, so we close the open
+  #      containers ourselves and keep whatever complete fields we already have —
+  #      a summary plus two badges beats discarding the whole response.
+  #
+  # Strict parse is always attempted first, so well-formed output never touches
+  # the repair path.
+  def parse_json_with_repair(json)
+    JSON.parse(json)
+  rescue JSON::ParserError => e
+    repaired = repair_json(json)
+    return JSON.parse(repaired) if repaired.present? && repaired != json
+
+    raise e
+  end
+
+  # Conservative textual fixes only — never rewrites values, so it cannot invent
+  # clinical data. String-aware, so a comma or brace inside a Persian/Sorani
+  # summary is left untouched.
+  def repair_json(json)
+    str = json.to_s
+
+    # Drop commas that sit immediately before a closing bracket/brace.
+    str = strip_trailing_commas(str)
+
+    # Close anything left open by truncation.
+    close_open_containers(str)
+  end
+
+  # Removes `,` followed only by whitespace then `}` or `]`, ignoring commas that
+  # fall inside string literals.
+  def strip_trailing_commas(str)
+    out = +""
+    in_string = false
+    escaped = false
+
+    chars = str.chars
+    chars.each_with_index do |ch, i|
+      if in_string
+        out << ch
+        if escaped
+          escaped = false
+        elsif ch == "\\"
+          escaped = true
+        elsif ch == '"'
+          in_string = false
+        end
+        next
+      end
+
+      if ch == '"'
+        in_string = true
+        out << ch
+        next
+      end
+
+      if ch == ","
+        # Look ahead past whitespace for a closer.
+        j = i + 1
+        j += 1 while j < chars.length && chars[j].match?(/\s/)
+        next if j < chars.length && (chars[j] == "}" || chars[j] == "]")
+      end
+
+      out << ch
+    end
+
+    out
+  end
+
+  # Walks the text tracking container depth outside of strings, then appends the
+  # brackets needed to balance it. A dangling partial token (an unterminated
+  # string, or a key with no value) is trimmed back to the last structurally safe
+  # point first, so the result parses instead of failing a second time.
+  def close_open_containers(str)
+    stack = []
+    in_string = false
+    escaped = false
+    safe_end = 0
+
+    str.each_char.with_index do |ch, i|
+      if in_string
+        if escaped
+          escaped = false
+        elsif ch == "\\"
+          escaped = true
+        elsif ch == '"'
+          in_string = false
+          safe_end = i + 1
+        end
+        next
+      end
+
+      case ch
+      when '"' then in_string = true
+      when "{", "[" then stack.push(ch == "{" ? "}" : "]")
+      when "}", "]"
+        stack.pop
+        safe_end = i + 1
+      when ","
+        safe_end = i # keep the position BEFORE the comma
+      end
+    end
+
+    return str if stack.empty? && !in_string
+
+    # Truncated: rewind to the last complete value, then balance the containers.
+    trimmed = str[0...safe_end].to_s.sub(/,\s*\z/, "")
+    return str if trimmed.blank?
+
+    trimmed + stack.reverse.join
+  end
+
+  # Drops terms that do not literally occur in the summary.
+  #
+  # The client attaches each definition tooltip by locating the term inside the
+  # summary text (SymptomForm.vue's summarySegments splits on exactly these
+  # strings). A term that is not a substring therefore renders NOTHING — it is not
+  # a degraded tooltip, it is an invisible one. Observed 2026-07-29: the model
+  # returned English terms lifted from an English lab report while writing its
+  # summary in Persian, so all four terms were unlocatable and the whole Jargon
+  # Decoder silently disappeared with a 200 OK.
+  #
+  # Dropping them keeps the payload honest (everything returned is renderable) and
+  # the WARN line makes a prompt-compliance regression visible instead of silent.
+  def reject_unlocatable_terms(terms, summary)
+    return [] if terms.blank?
+
+    haystack = summary.to_s.downcase
+    return terms if haystack.blank?
+
+    kept, dropped = terms.partition { |t| haystack.include?(t["term"].to_s.downcase) }
+
+    if dropped.any?
+      Rails.logger.warn(
+        "[OpenRouterService] dropped #{dropped.size}/#{terms.size} medical_terms not found in the " \
+        "summary (no tooltip can render for them): #{dropped.map { |t| t['term'] }.inspect}. " \
+        "The model likely lifted terms from the source document instead of copying them out of " \
+        "its own summary."
+      )
+    end
+
+    kept
+  end
+
   def extract_json_object(text)
     str = text.to_s.strip
     str = str.gsub(/\A```(?:json)?\s*/i, "").gsub(/\s*```\z/, "").strip
     start = str.index("{")
+    return nil if start.nil?
+
     finish = str.rindex("}")
-    return nil if start.nil? || finish.nil? || finish < start
+
+    # No closing brace at all → truncated mid-object. Hand the partial text to
+    # the repair pass rather than discarding the response outright.
+    return str[start..] if finish.nil? || finish < start
 
     str[start..finish]
   end

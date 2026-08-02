@@ -72,6 +72,13 @@ const documentQuestions = ref([])
 // clinical indicators the AI extracts from the uploaded document, each carrying
 // a normal/warning/critical status that drives its colour.
 const documentBadges = ref([])
+// Interactive Medical Jargon Decoder (رمزگشای اصطلاحات پزشکی): technical terms
+// found in the summary, each paired with a plain-language definition surfaced in
+// a hover/tap tooltip.
+const documentTerms = ref([])
+// Index of the summary segment whose definition tooltip is currently open
+// (null = none). Driven by hover on desktop and tap on mobile.
+const activeTermIndex = ref(null)
 const userAnswers = reactive({})
 const showQuestionsModal = ref(false)
 const answersSubmitted = ref(false)
@@ -188,6 +195,60 @@ function badgeClasses(status) {
   return BADGE_CLASSES[status] || BADGE_CLASSES.normal
 }
 
+// Defensively normalizes the AI's medical_terms payload: keeps only entries with
+// both a non-empty term and definition, and de-duplicates by term (case-insensitive).
+function setDocumentTerms(terms) {
+  const list = Array.isArray(terms) ? terms : []
+  const seen = new Set()
+  documentTerms.value = list
+    .filter(t => t && typeof t === 'object')
+    .map(t => ({ term: String(t.term ?? '').trim(), definition: String(t.definition ?? '').trim() }))
+    .filter(t => {
+      if (!t.term || !t.definition) return false
+      const key = t.term.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  activeTermIndex.value = null
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// Splits the summary into an ordered list of { text, term } segments, where
+// `term` is the matched medical-term object (or null for plain prose). Longer
+// terms are matched first so "iron-deficiency anemia" wins over "anemia".
+const summarySegments = computed(() => {
+  const text = documentSummary.value || ''
+  const terms = documentTerms.value
+  if (!text) return []
+  const usable = terms.filter(t => t.term)
+  if (!usable.length) return [{ text, term: null }]
+
+  const byLength = [...usable].sort((a, b) => b.term.length - a.term.length)
+  const pattern = byLength.map(t => escapeRegExp(t.term)).join('|')
+  if (!pattern) return [{ text, term: null }]
+
+  // Capturing group keeps the matched delimiters in the split result.
+  const re = new RegExp(`(${pattern})`, 'gi')
+  return text.split(re).filter(part => part !== '').map(part => {
+    const match = byLength.find(t => t.term.toLowerCase() === part.toLowerCase())
+    return { text: part, term: match || null }
+  })
+})
+
+function toggleTerm(index) {
+  activeTermIndex.value = activeTermIndex.value === index ? null : index
+}
+function openTerm(index) {
+  activeTermIndex.value = index
+}
+function closeTerm() {
+  activeTermIndex.value = null
+}
+
 function openQuestionsModal() {
   if (documentQuestions.value.length) showQuestionsModal.value = true
 }
@@ -222,6 +283,13 @@ function onKeydown(e) {
   if (e.key !== 'Escape') return
   if (previewAttachment.value) closePreview()
   else if (showQuestionsModal.value) closeQuestionsModal()
+  else if (activeTermIndex.value !== null) closeTerm()
+}
+
+// Tapping/clicking anywhere outside an open term chip dismisses its tooltip.
+// The chip itself stops propagation (@click.stop), so its own taps never reach here.
+function onDocClick() {
+  if (activeTermIndex.value !== null) closeTerm()
 }
 
 watch(isModalOpen, (open) => {
@@ -230,7 +298,80 @@ watch(isModalOpen, (open) => {
   }
 })
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('click', onDocClick)
+})
+
+// True when a string is (the start of) a JSON object/array, ignoring a leading
+// ```json fence. Guards against ever rendering raw JSON markup to the user.
+function looksLikeJson(s) {
+  if (typeof s !== 'string') return false
+  const t = s.trim().replace(/^```(?:json)?/i, '').trim()
+  return t.startsWith('{') || t.startsWith('[')
+}
+
+// Defensively coerces the analyze_document response into structured fields.
+// Axios normally hands us an already-parsed object, but we guard three failure
+// modes so raw JSON can never reach the UI:
+//   1. the whole body arriving as a JSON string → JSON.parse it,
+//   2. `summary` itself being a JSON blob (a backend raw-text fallback) →
+//      unwrap it and lift the real fields, or blank it if it won't parse,
+//   3. a missing / non-object payload → empty structure.
+function parseAnalysis(raw) {
+  let data = raw
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data) } catch (e) { data = {} }
+  }
+  if (!data || typeof data !== 'object') data = {}
+
+  let summary = typeof data.summary === 'string' ? data.summary : ''
+  let questions = data.questions
+  let vital_badges = data.vital_badges
+  let medical_terms = data.medical_terms
+
+  if (looksLikeJson(summary)) {
+    let inner = null
+    try {
+      inner = JSON.parse(summary.trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim())
+    } catch (e) { inner = null }
+    if (inner && typeof inner === 'object') {
+      summary = typeof inner.summary === 'string' ? inner.summary : ''
+      questions = questions ?? inner.questions
+      vital_badges = vital_badges ?? inner.vital_badges
+      medical_terms = medical_terms ?? inner.medical_terms
+    } else {
+      summary = ''
+    }
+  }
+  // Final belt-and-suspenders: never let JSON markup through as the summary.
+  if (looksLikeJson(summary)) summary = ''
+
+  return { summary, questions, vital_badges, medical_terms }
+}
+
+// Maps the backend's stable `error` code (assessments_controller.rb) to a
+// localized toast key. The API also returns a `message`, but that is only a
+// Persian safety net for clients that don't recognize the code — the client owns
+// localization, so we resolve our own copy per the active UI locale and fall back
+// to the generic error only for a code we've never seen.
+const ANALYSIS_ERROR_TOASTS = {
+  upstream_blocked: 'toast.document_analysis_upstream_blocked',
+  upstream_unavailable: 'toast.document_analysis_upstream_unavailable',
+  service_unconfigured: 'toast.document_analysis_service_unconfigured',
+  analysis_failed: 'toast.document_analysis_error',
+  invalid_file: 'toast.document_analysis_invalid_file',
+  file_required: 'toast.document_analysis_invalid_file'
+}
+
+// The MIME rejection arrives as ArgumentError text ("unsupported_mime_type: x"),
+// not a bare code, so match on the prefix.
+function analysisErrorToastKey(code) {
+  if (typeof code !== 'string' || !code) return 'toast.document_analysis_error'
+  if (ANALYSIS_ERROR_TOASTS[code]) return ANALYSIS_ERROR_TOASTS[code]
+  if (code.startsWith('unsupported_mime_type')) return 'toast.document_analysis_invalid_file'
+  return 'toast.document_analysis_error'
+}
 
 async function analyzeDocuments() {
   if (isAnalyzing.value) return
@@ -255,20 +396,39 @@ async function analyzeDocuments() {
       // worst-case fallback chain.
       timeout: 120000
     })
-    documentSummary.value = (data && data.summary) || ''
-    setDocumentQuestions(data && data.questions)
-    setDocumentBadges(data && data.vital_badges)
+    const parsed = parseAnalysis(data)
+    documentSummary.value = parsed.summary
+    setDocumentQuestions(parsed.questions)
+    setDocumentBadges(parsed.vital_badges)
+    setDocumentTerms(parsed.medical_terms)
     if (documentSummary.value || documentQuestions.value.length) {
       toast.success(t('toast.document_analysis_success'))
       openQuestionsModal()
     } else {
-      toast.error(t('toast.document_analysis_error'))
+      // 200 but nothing usable: the model replied without a parseable summary or
+      // questions (e.g. an unreadable scan). Distinct copy from a transport error,
+      // because the fix is a better photo rather than retrying the same one.
+      toast.error(t('toast.document_analysis_empty'))
     }
   } catch (e) {
     const status = e?.response?.status
     const body = e?.response?.data
-    console.warn('[symptom] analyze_document failed', { status, body, message: e?.message })
-    toast.error(t('toast.document_analysis_error'))
+    const code = body?.error
+    console.warn('[symptom] analyze_document failed', {
+      status,
+      code,
+      retryable: body?.retryable,
+      detail: body?.detail,
+      message: e?.message
+    })
+
+    // No response at all (network drop / client timeout) is a connectivity
+    // problem, not a backend error code — the API never answered.
+    if (!e?.response) {
+      toast.error(t('toast.server_unreachable'))
+    } else {
+      toast.error(t(analysisErrorToastKey(code)))
+    }
   } finally {
     isAnalyzing.value = false
   }
@@ -309,6 +469,7 @@ function removeAttachment(id) {
     documentSummary.value = ''
     setDocumentQuestions([])
     setDocumentBadges([])
+    setDocumentTerms([])
     showQuestionsModal.value = false
   }
 }
@@ -396,6 +557,7 @@ function resetForm() {
   documentSummary.value = ''
   setDocumentQuestions([])
   setDocumentBadges([])
+  setDocumentTerms([])
   showQuestionsModal.value = false
   closePreview()
   isAnalyzing.value = false
@@ -619,6 +781,7 @@ onBeforeUnmount(() => {
   clearTimeout(summaryCopiedTimer)
   clearTimeout(guardTimer)
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('click', onDocClick)
   if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
 
@@ -1229,7 +1392,58 @@ async function submit() {
             <div class="font-semibold mb-1 text-brand-dark dark:text-emerald-300">
               {{ t('symptom_form.document_summary_title') }}
             </div>
-            <p class="whitespace-pre-wrap">{{ documentSummary }}</p>
+            <!-- Interactive Medical Jargon Decoder: technical terms in the summary
+                 become dashed-underline chips with a hover/tap definition tooltip.
+                 Plain-text segments render verbatim when no terms match. -->
+            <p class="whitespace-pre-wrap leading-relaxed">
+              <template v-for="(seg, i) in summarySegments" :key="i">
+                <span
+                  v-if="seg.term"
+                  class="relative inline-block"
+                  @click.stop
+                >
+                  <span
+                    role="button"
+                    tabindex="0"
+                    data-testid="medical-term"
+                    :aria-expanded="activeTermIndex === i"
+                    @click="toggleTerm(i)"
+                    @mouseenter="openTerm(i)"
+                    @mouseleave="closeTerm"
+                    @focus="openTerm(i)"
+                    @blur="closeTerm"
+                    @keydown.enter.prevent="toggleTerm(i)"
+                    @keydown.space.prevent="toggleTerm(i)"
+                    class="underline decoration-dashed decoration-teal-400 underline-offset-2
+                           cursor-pointer font-medium text-teal-700 dark:text-teal-300
+                           rounded-sm outline-none transition-colors duration-200
+                           hover:text-teal-800 dark:hover:text-teal-200
+                           focus-visible:ring-2 focus-visible:ring-teal-400/50"
+                  >{{ seg.text }}</span>
+                  <Transition name="fade">
+                    <span
+                      v-if="activeTermIndex === i"
+                      role="tooltip"
+                      data-testid="medical-term-tooltip"
+                      class="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2
+                             w-max max-w-[240px] px-3 py-2 rounded-xl
+                             bg-slate-900/95 dark:bg-slate-700/95 backdrop-blur-md
+                             text-xs font-normal leading-snug text-white text-start
+                             shadow-soft-lg ring-1 ring-black/5 dark:ring-white/10"
+                    >
+                      <span class="block font-semibold text-teal-300 mb-0.5">{{ seg.term.term }}</span>
+                      {{ seg.term.definition }}
+                      <span
+                        class="absolute top-full left-1/2 -translate-x-1/2 -mt-px
+                               border-4 border-transparent border-t-slate-900/95 dark:border-t-slate-700/95"
+                        aria-hidden="true"
+                      ></span>
+                    </span>
+                  </Transition>
+                </span>
+                <template v-else>{{ seg.text }}</template>
+              </template>
+            </p>
           </div>
 
           <Transition name="questions-slide">

@@ -95,8 +95,11 @@ RSpec.describe OpenRouterService do
       expect(captured[:body]["model"]).to eq("google/gemini-2.5-flash")
       expect(captured[:body]["response_format"]).to eq("type" => "json_object")
       # Bounded so the free/low-credit tier's affordability check passes; without
-      # it OpenRouter reserves the model's full (65535-token) max output.
-      expect(captured[:body]["max_tokens"]).to eq(2000)
+      # it OpenRouter reserves the model's full (65535-token) max output. Raised
+      # from 2000 once the contract grew vital_badges + medical_terms: Persian and
+      # Sorani cost several tokens per character, and 2000 truncated the JSON
+      # mid-object.
+      expect(captured[:body]["max_tokens"]).to eq(4000)
 
       messages = captured[:body]["messages"]
       expect(messages.first["role"]).to eq("system")
@@ -167,7 +170,15 @@ RSpec.describe OpenRouterService do
       end
 
       result = service.analyze_document(fake_file, locale: "en")
-      expect(result).to eq("summary" => "Iron deficiency", "questions" => ["a", "b", "c"])
+      # The contract is always all four keys. vital_badges/medical_terms come back
+      # as empty arrays when the model omits them, so the client never has to
+      # null-check them.
+      expect(result).to eq(
+        "summary" => "Iron deficiency",
+        "questions" => ["a", "b", "c"],
+        "vital_badges" => [],
+        "medical_terms" => []
+      )
     end
 
     it "tolerates markdown fences around the JSON" do
@@ -254,9 +265,77 @@ RSpec.describe OpenRouterService do
       result = service.analyze_document(fake_file, locale: "en")
 
       expect(result["summary"]).to eq("From fallback")
-      # First the configured model, then the next candidate after the 503.
-      expect(seen_models[0]).to eq("google/gemini-2.5-flash")
-      expect(seen_models[1]).to eq("meta-llama/llama-3.2-11b-vision-instruct")
+      # First the configured model, then the next candidate after the 503. Asserted
+      # against MODELS rather than hardcoded slugs so retiring a model (as happened
+      # to the llama-3.2 vision pair on 2026-07-29) updates this spec automatically
+      # instead of failing it.
+      expect(seen_models[0]).to eq(OpenRouterService::MODELS[0])
+      expect(seen_models[1]).to eq(OpenRouterService::MODELS[1])
+    end
+
+    describe "OPENROUTER_MODELS override" do
+      around do |example|
+        original = ENV["OPENROUTER_MODELS"]
+        example.run
+        original.nil? ? ENV.delete("OPENROUTER_MODELS") : ENV["OPENROUTER_MODELS"] = original
+      end
+
+      it "falls back to the compiled-in defaults when unset" do
+        ENV.delete("OPENROUTER_MODELS")
+        expect(described_class.models).to eq(described_class::DEFAULT_MODELS)
+      end
+
+      it "replaces the default list, preserving order" do
+        # Model naming is backend-specific: Google's OpenAI-compatible endpoint
+        # wants bare slugs and 404s on OpenRouter's namespaced form, so repointing
+        # the base URL has to be able to move the model list with it.
+        ENV["OPENROUTER_MODELS"] = "gemini-2.5-flash,gemini-2.5-flash-lite"
+        expect(described_class.models).to eq(%w[gemini-2.5-flash gemini-2.5-flash-lite])
+      end
+
+      it "tolerates whitespace, blanks and duplicates" do
+        ENV["OPENROUTER_MODELS"] = " a ,, b ,a, "
+        expect(described_class.models).to eq(%w[a b])
+      end
+
+      it "ignores a blank or whitespace-only value" do
+        ENV["OPENROUTER_MODELS"] = "   "
+        expect(described_class.models).to eq(described_class::DEFAULT_MODELS)
+      end
+
+      it "drives the models actually requested, in order" do
+        ENV["OPENROUTER_MODELS"] = "first-model,second-model"
+        seen = []
+        stub_openrouter do |stubs|
+          stubs.post("/api/v1/chat/completions") do |env|
+            seen << JSON.parse(env.request_body)["model"]
+            if seen.size == 1
+              [503, { "Content-Type" => "application/json" }, JSON.generate("error" => { "message" => "busy" })]
+            else
+              [200, { "Content-Type" => "application/json" }, ok_body(summary: "S")]
+            end
+          end
+        end
+
+        described_class.new(api_key: api_key, base_url: base_url).analyze_document(fake_file, locale: "en")
+        expect(seen).to eq(%w[first-model second-model])
+      end
+
+      it "still ignores the legacy singular OPENROUTER_MODEL" do
+        ENV.delete("OPENROUTER_MODELS")
+        original = ENV["OPENROUTER_MODEL"]
+        ENV["OPENROUTER_MODEL"] = "some/stale-pinned-model"
+        expect(described_class.models).to eq(described_class::DEFAULT_MODELS)
+      ensure
+        original.nil? ? ENV.delete("OPENROUTER_MODEL") : ENV["OPENROUTER_MODEL"] = original
+      end
+    end
+
+    it "configures at least two candidates, so the lead model has somewhere to fall back to" do
+      # Guards the regression found on 2026-07-29: two of three slugs had been
+      # retired upstream, leaving the 'fallback chain' with no working fallback.
+      expect(OpenRouterService::MODELS.size).to be >= 2
+      expect(OpenRouterService::MODELS.uniq.size).to eq(OpenRouterService::MODELS.size)
     end
 
     it "rolls over past a 502 with a RAW STRING body (no #dig crash) to the next model" do
@@ -335,6 +414,38 @@ RSpec.describe OpenRouterService do
         .to raise_error(OpenRouterService::ApiError, /unreachable/)
     end
 
+    it "classifies an unreachable host as host-level and stops after one attempt" do
+      attempts = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          attempts += 1
+          raise Faraday::ConnectionFailed, "refused"
+        end
+      end
+
+      expect { service.analyze_document(fake_file, locale: "en") }
+        .to raise_error(OpenRouterService::UpstreamUnreachableError)
+      # All candidates share this base URL, so retrying them would only add one
+      # open-timeout each with no chance of succeeding.
+      expect(attempts).to eq(1)
+    end
+
+    it "still rolls over across models on a READ timeout, which can be model-specific" do
+      attempts = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          attempts += 1
+          raise Faraday::TimeoutError, "too slow" if attempts == 1
+
+          [200, { "Content-Type" => "application/json" }, ok_body(summary: "Second model")]
+        end
+      end
+
+      result = service.analyze_document(fake_file, locale: "en")
+      expect(result["summary"]).to eq("Second model")
+      expect(attempts).to eq(2)
+    end
+
     it "rejects a blank file before making any request" do
       expect { service.analyze_document(nil, locale: "en") }
         .to raise_error(ArgumentError, /file is required/)
@@ -343,6 +454,210 @@ RSpec.describe OpenRouterService do
     it "rejects an unsupported MIME type" do
       expect { service.analyze_document(fake_file(content_type: "text/plain"), locale: "en") }
         .to raise_error(ArgumentError, /unsupported_mime_type/)
+    end
+  end
+
+  # Regression cover for the 2026-07-29 incident: every model returned an
+  # identical 403 from a network intermediary, not from OpenRouter.
+  describe "upstream interception (network-level block)" do
+    # Byte-for-byte the body observed in-region. Note it is NOT OpenRouter's error
+    # shape — theirs nests under "error" => { "message" => ... }.
+    let(:block_body) { '{ "success": false, "error": "Access denied by security policy." }' }
+
+    it "raises UpstreamBlockedError instead of a generic ApiError" do
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          [403, { "Content-Type" => "application/json" }, block_body]
+        end
+      end
+
+      expect { service.analyze_document(fake_file, locale: "en") }
+        .to raise_error(OpenRouterService::UpstreamBlockedError, /blocked_upstream/)
+    end
+
+    it "does NOT retry the other candidate models, since all would get the same reply" do
+      attempts = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          attempts += 1
+          [403, { "Content-Type" => "application/json" }, block_body]
+        end
+      end
+
+      expect { service.analyze_document(fake_file, locale: "en") }
+        .to raise_error(OpenRouterService::UpstreamBlockedError)
+      expect(attempts).to eq(1)
+    end
+
+    it "still rolls over on a genuine OpenRouter 403 (e.g. a disabled key)" do
+      attempts = 0
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          attempts += 1
+          if attempts == 1
+            # OpenRouter's own shape: nested "error" object, no block marker.
+            [403, { "Content-Type" => "application/json" },
+             JSON.generate("error" => { "message" => "Key disabled", "code" => 403 })]
+          else
+            [200, { "Content-Type" => "application/json" }, ok_body(summary: "Recovered")]
+          end
+        end
+      end
+
+      result = service.analyze_document(fake_file, locale: "en")
+      expect(result["summary"]).to eq("Recovered")
+      expect(attempts).to eq(2)
+    end
+
+    it "is rescuable as an ApiError so existing callers keep working" do
+      expect(OpenRouterService::UpstreamBlockedError.ancestors)
+        .to include(OpenRouterService::ApiError)
+    end
+  end
+
+  # Regression cover for the 2026-07-29 silent-tooltip bug: the model wrote its
+  # summary in Persian but lifted medical_terms from the English source document,
+  # so no term was a substring of the summary and the whole Jargon Decoder
+  # rendered nothing behind a 200 OK.
+  describe "medical_terms must be locatable in the summary" do
+    def analyze_returning(payload)
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" },
+           JSON.generate("choices" => [{ "message" => { "content" => JSON.generate(payload) } }])]
+        end
+      end
+      service.analyze_document(fake_file, locale: "fa")
+    end
+
+    it "drops terms that do not occur in the summary" do
+      result = analyze_returning(
+        "summary" => "نتایج نشان‌دهنده کم‌خونی فقر آهن است.",
+        "questions" => %w[a b c],
+        "vital_badges" => [],
+        # Lifted from an English document; unlocatable in a Persian summary.
+        "medical_terms" => [
+          { "term" => "Iron deficiency", "definition" => "کمبود آهن." },
+          { "term" => "Ferritin", "definition" => "ذخیره آهن." }
+        ]
+      )
+
+      expect(result["medical_terms"]).to eq([])
+    end
+
+    it "keeps terms that are a literal substring of the summary" do
+      result = analyze_returning(
+        "summary" => "نتایج نشان‌دهنده کم‌خونی فقر آهن است.",
+        "questions" => %w[a b c],
+        "vital_badges" => [],
+        "medical_terms" => [{ "term" => "کم‌خونی فقر آهن", "definition" => "کمبود آهن بدن." }]
+      )
+
+      expect(result["medical_terms"].map { |t| t["term"] }).to eq(["کم‌خونی فقر آهن"])
+    end
+
+    it "keeps only the locatable subset when the model returns a mix" do
+      result = analyze_returning(
+        "summary" => "Findings indicate iron deficiency anemia with low ferritin.",
+        "questions" => %w[a b c],
+        "vital_badges" => [],
+        "medical_terms" => [
+          { "term" => "ferritin", "definition" => "Stores iron." },
+          { "term" => "Tachycardia", "definition" => "Fast heart rate." },
+          { "term" => "iron deficiency anemia", "definition" => "Too little iron." }
+        ]
+      )
+
+      expect(result["medical_terms"].map { |t| t["term"] })
+        .to eq([ "ferritin", "iron deficiency anemia" ])
+    end
+
+    it "matches case-insensitively, so casing drift still renders" do
+      result = analyze_returning(
+        "summary" => "Findings indicate Iron Deficiency Anemia.",
+        "questions" => %w[a b c],
+        "vital_badges" => [],
+        "medical_terms" => [{ "term" => "iron deficiency anemia", "definition" => "Too little iron." }]
+      )
+
+      expect(result["medical_terms"].size).to eq(1)
+    end
+
+    it "does not drop terms when the summary is blank (nothing to match against)" do
+      # A blank summary means the raw-text fallback path; keep the data rather than
+      # discarding it on a technicality.
+      result = analyze_returning(
+        "summary" => "",
+        "questions" => %w[a b c],
+        "vital_badges" => [],
+        "medical_terms" => [{ "term" => "Ferritin", "definition" => "Stores iron." }]
+      )
+
+      expect(result["medical_terms"].map { |t| t["term"] }).to eq(["Ferritin"])
+    end
+  end
+
+  describe "malformed JSON repair" do
+    def content_body(text)
+      JSON.generate("choices" => [{ "message" => { "content" => text } }])
+    end
+
+    def analyze_with(text)
+      stub_openrouter do |stubs|
+        stubs.post("/api/v1/chat/completions") do
+          [200, { "Content-Type" => "application/json" }, content_body(text)]
+        end
+      end
+      service.analyze_document(fake_file, locale: "en")
+    end
+
+    it "recovers a trailing comma before a closing bracket" do
+      # The exact defect logged on 2026-07-28 ("unexpected character: '],'"),
+      # which silently blanked vital_badges and medical_terms.
+      result = analyze_with(<<~JSON)
+        {
+          "summary": "Iron deficiency anemia.",
+          "questions": ["a", "b", "c"],
+          "vital_badges": [
+            { "label": "Hgb", "value": "10.2", "status": "warning", "icon": "🩸" },
+          ],
+          "medical_terms": []
+        }
+      JSON
+
+      expect(result["summary"]).to eq("Iron deficiency anemia.")
+      expect(result["vital_badges"].length).to eq(1)
+      expect(result["vital_badges"].first["label"]).to eq("Hgb")
+    end
+
+    it "salvages complete fields from a response truncated at max_tokens" do
+      result = analyze_with(
+        '{"summary":"Anemia found.","questions":["a","b","c"],' \
+        '"vital_badges":[{"label":"Hgb","value":"10.2","status":"warning","icon":"🩸"},{"label":"Ferrit'
+      )
+
+      expect(result["summary"]).to eq("Anemia found.")
+      expect(result["questions"]).to eq(["a", "b", "c"])
+      # The one COMPLETE badge survives; the half-written one is discarded.
+      expect(result["vital_badges"].length).to eq(1)
+    end
+
+    it "leaves commas and brackets inside string values untouched" do
+      result = analyze_with(
+        '{"summary":"Values: 1, 2, and 3 [normal], fine.","questions":["why, though?"],' \
+        '"vital_badges":[],"medical_terms":[]}'
+      )
+
+      expect(result["summary"]).to eq("Values: 1, 2, and 3 [normal], fine.")
+      expect(result["questions"]).to eq(["why, though?"])
+    end
+
+    it "degrades to an empty structure on unrepairable output, without raising" do
+      result = analyze_with("{{{ not json at all ]]]")
+      expect(result["summary"]).to eq("")
+      expect(result["questions"]).to eq([])
+      expect(result["vital_badges"]).to eq([])
+      expect(result["medical_terms"]).to eq([])
     end
   end
 end

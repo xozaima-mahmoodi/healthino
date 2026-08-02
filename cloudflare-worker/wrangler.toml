@@ -2,5 +2,23 @@ name = "healthino-gemini-proxy"
 main = "worker.js"
 compatibility_date = "2026-06-01"
 
-# No secrets live in the Worker: the Rails app sends the Gemini API key in the
-# x-goog-api-key header, which this proxy forwards untouched.
+# No secrets live in the Worker. Rails sends the API key on every request
+# (`Authorization: Bearer` for OpenRouter, `x-goog-api-key` for Gemini) and the
+# proxy forwards it untouched.
+
+# Default (bare `wrangler deploy`) keeps the legacy Gemini upstream so the
+# already-deployed healthino-gemini-proxy behaves exactly as before.
+[vars]
+UPSTREAM = "https://generativelanguage.googleapis.com"
+
+# Current back end. Deploy with:  wrangler deploy --env openrouter
+# Publishes a SEPARATE worker (healthino-openrouter-proxy) — the Gemini one is
+# left untouched, so this is additive and trivially reversible.
+#
+# Then point Rails at it, including OpenRouter's /api/v1 path suffix:
+#   OPENROUTER_BASE_URL=https://healthino-openrouter-proxy.<subdomain>.workers.dev/api/v1
+[env.openrouter]
+name = "healthino-openrouter-proxy"
+
+[env.openrouter.vars]
+UPSTREAM = "https://openrouter.ai"

@@ -22,9 +22,9 @@ const SAMPLE_RESULT = {
   ]
 }
 
-async function mountForm() {
+async function mountForm(options = {}) {
   const { plugins } = await makeTestPlugins()
-  return mount(SymptomForm, { global: { plugins } })
+  return mount(SymptomForm, { global: { plugins }, ...options })
 }
 
 describe('SymptomForm — primary symptom select', () => {
@@ -359,6 +359,351 @@ describe('SymptomForm — analyze-documents button loading state', () => {
     await nextTick()
 
     expect(postSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Drives a full document analysis with a canned API payload, so the badge /
+// medical-term rendering can be asserted on real component state.
+async function analyzeWith(wrapper, data) {
+  await selectFiles(wrapper, [new File(['bytes'], 'lab.png', { type: 'image/png' })])
+  vi.spyOn(api, 'post').mockResolvedValue({ data })
+  await wrapper.find('[data-testid="analyze-documents-button"]').trigger('click')
+  await flushPromises()
+}
+
+describe('SymptomForm — vital badges', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  const BADGES = [
+    { label: 'Hemoglobin', value: '9.1 g/dL', status: 'warning', icon: '🩸' },
+    { label: 'Blood pressure', value: '180/110', status: 'critical' },
+    { label: 'Fasting glucose', value: '92 mg/dL', status: 'normal' }
+  ]
+
+  it('renders nothing when the analysis carries no vital badges', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', questions: [] })
+    expect(wrapper.find('[data-testid="vital-badges"]').exists()).toBe(false)
+  })
+
+  it('renders one card per badge with its label, value and status attribute', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
+
+    const section = wrapper.find('[data-testid="vital-badges"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain(faMessages.symptom_form.vital_badges_title)
+
+    const cards = wrapper.findAll('[data-testid="vital-badge"]')
+    expect(cards).toHaveLength(3)
+    expect(cards.map(c => c.attributes('data-status'))).toEqual(['warning', 'critical', 'normal'])
+    expect(cards[0].text()).toContain('Hemoglobin')
+    expect(cards[0].text()).toContain('9.1 g/dL')
+  })
+
+  it('lays the cards out in a responsive grid (1 → 2 → 3 columns)', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
+
+    const grid = wrapper.find('[data-testid="vital-badge"]').element.parentElement
+    expect(grid.className).toContain('grid')
+    expect(grid.className).toContain('grid-cols-1')
+    expect(grid.className).toContain('sm:grid-cols-2')
+    expect(grid.className).toContain('xl:grid-cols-3')
+  })
+
+  it('colour-codes emerald / amber / rose and names the status in words', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
+
+    const byStatus = {}
+    for (const card of wrapper.findAll('[data-testid="vital-badge"]')) {
+      byStatus[card.attributes('data-status')] = card
+    }
+
+    expect(byStatus.normal.classes().join(' ')).toContain('emerald')
+    expect(byStatus.warning.classes().join(' ')).toContain('amber')
+    expect(byStatus.critical.classes().join(' ')).toContain('rose')
+
+    expect(byStatus.normal.find('[data-testid="vital-badge-status"]').text())
+      .toBe(faMessages.symptom_form.vital_status_normal)
+    expect(byStatus.warning.find('[data-testid="vital-badge-status"]').text())
+      .toBe(faMessages.symptom_form.vital_status_warning)
+    expect(byStatus.critical.find('[data-testid="vital-badge-status"]').text())
+      .toBe(faMessages.symptom_form.vital_status_critical)
+  })
+
+  it('pairs every status with dark-mode variants so the tint survives theme switches', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
+
+    for (const card of wrapper.findAll('[data-testid="vital-badge"]')) {
+      expect(card.classes().some(c => c.startsWith('dark:bg-'))).toBe(true)
+      expect(card.classes().some(c => c.startsWith('dark:border-'))).toBe(true)
+    }
+  })
+
+  it('falls back to a status icon when the AI sends no emoji', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
+
+    const cards = wrapper.findAll('[data-testid="vital-badge"]')
+    // Badge 0 carries 🩸 → no SVG; badges 1 and 2 have none → SVG fallback.
+    expect(cards[0].find('[data-testid="vital-badge-icon"]').exists()).toBe(false)
+    expect(cards[0].text()).toContain('🩸')
+    expect(cards[1].find('[data-testid="vital-badge-icon"]').exists()).toBe(true)
+    expect(cards[2].find('[data-testid="vital-badge-icon"]').exists()).toBe(true)
+  })
+
+  it('clamps an unrecognised status to normal rather than rendering an unstyled card', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, {
+      summary: 'خلاصه',
+      vital_badges: [{ label: 'Ferritin', value: '11 ng/mL', status: 'exploded' }]
+    })
+
+    const card = wrapper.find('[data-testid="vital-badge"]')
+    expect(card.attributes('data-status')).toBe('normal')
+    expect(card.classes().join(' ')).toContain('emerald')
+  })
+})
+
+describe('SymptomForm — medical terminology decoder', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    // Teleported popovers live in <body>; clear any leftovers between tests.
+    document.body.querySelectorAll('[data-testid="medical-term-tooltip"]').forEach(n => n.remove())
+  })
+
+  const PAYLOAD = {
+    summary: 'The report shows anemia and mild tachycardia.',
+    medical_terms: [
+      { term: 'anemia', definition: 'A low red blood cell count.' },
+      { term: 'tachycardia', definition: 'A faster than normal heart rate.' }
+    ]
+  }
+
+  const tooltip = () => document.body.querySelector('[data-testid="medical-term-tooltip"]')
+
+  // Anchors a term at a chosen viewport position so placement/clamping is testable
+  // in a headless DOM, where every rect is otherwise 0×0.
+  function stubRect(el, { left, top, width = 60, height = 18 }) {
+    el.getBoundingClientRect = () => ({
+      left, top, width, height, right: left + width, bottom: top + height, x: left, y: top
+    })
+  }
+
+  function setViewport(width, height) {
+    Object.defineProperty(window, 'innerWidth', { value: width, configurable: true, writable: true })
+    Object.defineProperty(window, 'innerHeight', { value: height, configurable: true, writable: true })
+  }
+
+  it('turns matched terms into interactive chips and leaves the prose untouched', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+
+    const terms = wrapper.findAll('[data-testid="medical-term"]')
+    expect(terms.map(t => t.text())).toEqual(['anemia', 'tachycardia'])
+    expect(wrapper.find('[data-testid="document-summary"]').text())
+      .toContain('The report shows anemia and mild tachycardia.')
+  })
+
+  it('marks the chips with a highlight plus dotted underline, in both themes', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+
+    const classes = wrapper.find('[data-testid="medical-term"]').classes()
+    expect(classes).toContain('underline')
+    expect(classes).toContain('decoration-dotted')
+    expect(classes).toContain('cursor-pointer')
+    expect(classes).toContain('bg-teal-500/10')
+    expect(classes).toContain('dark:bg-teal-400/10')
+  })
+
+  it('opens a popover with the term and its definition on tap, and closes on a second tap', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    expect(tooltip()).toBeNull()
+    expect(term.attributes('aria-expanded')).toBe('false')
+
+    await term.trigger('click')
+    expect(tooltip()).not.toBeNull()
+    expect(tooltip().textContent).toContain('anemia')
+    expect(tooltip().textContent).toContain('A low red blood cell count.')
+    expect(term.attributes('aria-expanded')).toBe('true')
+    // The chip points at the popover for screen readers only while it is open.
+    expect(term.attributes('aria-describedby')).toBe(tooltip().id)
+
+    await term.trigger('click')
+    expect(tooltip()).toBeNull()
+    expect(term.attributes('aria-describedby')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('keeps only one definition open at a time', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const terms = wrapper.findAll('[data-testid="medical-term"]')
+
+    await terms[0].trigger('click')
+    await terms[1].trigger('click')
+
+    expect(document.body.querySelectorAll('[data-testid="medical-term-tooltip"]')).toHaveLength(1)
+    expect(tooltip().textContent).toContain('tachycardia')
+
+    wrapper.unmount()
+  })
+
+  it('ignores hover from a touch pointer so a tap does not open-then-close', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    await term.trigger('pointerenter', { pointerType: 'touch' })
+    expect(tooltip()).toBeNull()
+
+    // The tap's click still opens it, and a stray touch pointerleave must not
+    // yank it away mid-read.
+    await term.trigger('click')
+    expect(tooltip()).not.toBeNull()
+    await term.trigger('pointerleave', { pointerType: 'touch' })
+    expect(tooltip()).not.toBeNull()
+
+    wrapper.unmount()
+  })
+
+  it('opens and closes on mouse hover', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    await term.trigger('pointerenter', { pointerType: 'mouse' })
+    expect(tooltip()).not.toBeNull()
+
+    await term.trigger('pointerleave', { pointerType: 'mouse' })
+    expect(tooltip()).toBeNull()
+
+    wrapper.unmount()
+  })
+
+  it('clamps the popover inside the viewport for a term hugging the screen edge', async () => {
+    setViewport(375, 700)
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    // Term pinned to the right edge: centring it would push the bubble off-screen.
+    stubRect(term.element, { left: 330, top: 400, width: 40 })
+    await term.trigger('click')
+
+    const style = tooltip().style
+    const left = parseFloat(style.left)
+    const width = parseFloat(style.width)
+    expect(width).toBe(288)
+    expect(left).toBeGreaterThanOrEqual(12)
+    expect(left + width).toBeLessThanOrEqual(375 - 12)
+    // The arrow follows the term even though the bubble was pushed left.
+    const arrowLeft = parseFloat(tooltip().querySelector('span[aria-hidden="true"]').style.left)
+    expect(arrowLeft).toBeGreaterThan(width / 2)
+
+    wrapper.unmount()
+  })
+
+  it('narrows the popover to fit a viewport thinner than its natural width', async () => {
+    setViewport(280, 640)
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    stubRect(term.element, { left: 8, top: 300, width: 40 })
+    await term.trigger('click')
+
+    expect(parseFloat(tooltip().style.width)).toBe(280 - 24)
+    expect(parseFloat(tooltip().style.left)).toBe(12)
+
+    wrapper.unmount()
+  })
+
+  it('anchors above the term by default and flips below when there is no room', async () => {
+    setViewport(1280, 800)
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    stubRect(term.element, { left: 500, top: 500 })
+    await term.trigger('click')
+    expect(tooltip().getAttribute('data-placement')).toBe('top')
+    expect(tooltip().style.bottom).not.toBe('')
+    expect(tooltip().style.top).toBe('')
+
+    // Same term near the top of the viewport → flip under it.
+    await term.trigger('click')
+    stubRect(term.element, { left: 500, top: 24 })
+    await term.trigger('click')
+    expect(tooltip().getAttribute('data-placement')).toBe('bottom')
+    expect(tooltip().style.top).toBe('52px')   // rect.bottom (24 + 18) + 10 offset
+    expect(tooltip().style.bottom).toBe('')
+
+    wrapper.unmount()
+  })
+
+  it('re-anchors the popover when the page scrolls under it', async () => {
+    setViewport(1280, 800)
+    // Attached to the document so the open term stays `isConnected` — the
+    // re-anchor path gives up (and closes) on a detached trigger.
+    const wrapper = await mountForm({ attachTo: document.body })
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    stubRect(term.element, { left: 500, top: 500 })
+    await term.trigger('click')
+    const before = tooltip().style.bottom
+
+    stubRect(term.element, { left: 500, top: 320 })
+    window.dispatchEvent(new Event('scroll'))
+    await nextTick()
+
+    expect(tooltip().style.bottom).not.toBe(before)
+
+    wrapper.unmount()
+  })
+
+  it('closes the popover on Escape', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    await wrapper.findAll('[data-testid="medical-term"]')[0].trigger('click')
+    expect(tooltip()).not.toBeNull()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+    expect(tooltip()).toBeNull()
+
+    wrapper.unmount()
+  })
+
+  it('closes the popover when the user taps elsewhere on the page', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    await wrapper.findAll('[data-testid="medical-term"]')[0].trigger('click')
+    expect(tooltip()).not.toBeNull()
+
+    document.body.dispatchEvent(new Event('click', { bubbles: true }))
+    await nextTick()
+    expect(tooltip()).toBeNull()
+
+    wrapper.unmount()
+  })
+
+  it('renders the summary verbatim with no chips when the AI sends no terms', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'A plain summary with no jargon.' })
+
+    expect(wrapper.findAll('[data-testid="medical-term"]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="document-summary"]').text())
+      .toContain('A plain summary with no jargon.')
   })
 })
 

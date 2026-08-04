@@ -185,15 +185,61 @@ function setDocumentBadges(badges) {
     }))
 }
 
-// Tailwind classes per status: soft tinted background, matching border + text.
-const BADGE_CLASSES = {
-  normal: 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800/60',
-  warning: 'bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800/60',
-  critical: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60'
+// Per-status presentation for a vital card: a frosted tinted surface, a matching
+// icon tile, and a status pill. Emerald = normal, amber = warning, rose = critical
+// — the same triage palette the result card uses, so the colours read as one
+// language across the page.
+const BADGE_STYLES = {
+  normal: {
+    card: 'border-emerald-200/70 dark:border-emerald-400/20 bg-emerald-50/70 dark:bg-emerald-950/30 ring-emerald-500/10 dark:ring-emerald-400/10',
+    tile: 'bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-600 dark:text-emerald-300',
+    label: 'text-emerald-800/70 dark:text-emerald-200/70',
+    value: 'text-emerald-900 dark:text-emerald-50',
+    pill: 'bg-emerald-500/10 dark:bg-emerald-400/15 text-emerald-700 dark:text-emerald-300',
+    dot: 'bg-emerald-500',
+    // lucide check
+    paths: ['M20 6 9 17l-5-5']
+  },
+  warning: {
+    card: 'border-amber-200/70 dark:border-amber-400/20 bg-amber-50/70 dark:bg-amber-950/30 ring-amber-500/10 dark:ring-amber-400/10',
+    tile: 'bg-amber-500/10 dark:bg-amber-400/15 text-amber-600 dark:text-amber-300',
+    label: 'text-amber-800/70 dark:text-amber-200/70',
+    value: 'text-amber-900 dark:text-amber-50',
+    pill: 'bg-amber-500/10 dark:bg-amber-400/15 text-amber-700 dark:text-amber-300',
+    dot: 'bg-amber-500',
+    // lucide triangle-alert
+    paths: [
+      'M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z',
+      'M12 9v4',
+      'M12 17h.01'
+    ]
+  },
+  critical: {
+    card: 'border-rose-200/70 dark:border-rose-400/20 bg-rose-50/70 dark:bg-rose-950/30 ring-rose-500/10 dark:ring-rose-400/10',
+    tile: 'bg-rose-500/10 dark:bg-rose-400/15 text-rose-600 dark:text-rose-300',
+    label: 'text-rose-800/70 dark:text-rose-200/70',
+    value: 'text-rose-900 dark:text-rose-50',
+    pill: 'bg-rose-500/10 dark:bg-rose-400/15 text-rose-700 dark:text-rose-300',
+    dot: 'bg-rose-500',
+    // lucide octagon-alert
+    paths: [
+      'M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2Z',
+      'M12 8v4',
+      'M12 16h.01'
+    ]
+  }
 }
-function badgeClasses(status) {
-  return BADGE_CLASSES[status] || BADGE_CLASSES.normal
+function badgeStyle(status) {
+  return BADGE_STYLES[status] || BADGE_STYLES.normal
 }
+
+// Decorates each normalized badge with its palette and a localized status word,
+// so colour is never the only carrier of the normal/warning/critical meaning.
+const vitalBadges = computed(() => documentBadges.value.map(b => ({
+  ...b,
+  style: badgeStyle(b.status),
+  statusLabel: t(`symptom_form.vital_status_${b.status}`)
+})))
 
 // Defensively normalizes the AI's medical_terms payload: keeps only entries with
 // both a non-empty term and definition, and de-duplicates by term (case-insensitive).
@@ -239,14 +285,107 @@ const summarySegments = computed(() => {
   })
 })
 
-function toggleTerm(index) {
-  activeTermIndex.value = activeTermIndex.value === index ? null : index
+// ── Term definition popover placement ─────────────────────────────────────
+// The popover is teleported to <body> and fixed-positioned from the trigger's
+// viewport rect. Teleporting is required rather than cosmetic: the summary card
+// has `backdrop-blur`, which makes it the containing block for fixed children,
+// so an in-place popover would be trapped inside (and clipped by) the card.
+// Positioning in JS also lets us clamp to the viewport, which `left-1/2` cannot
+// do — a term near either screen edge used to render half off-screen on mobile.
+const TERM_POPOVER_WIDTH = 288
+const TERM_POPOVER_GUTTER = 12
+// Vertical space the popover needs above the term before we flip it below.
+const TERM_POPOVER_FLIP_THRESHOLD = 150
+const termPopover = ref({
+  left: TERM_POPOVER_GUTTER,
+  top: 0,
+  bottom: 0,
+  width: TERM_POPOVER_WIDTH,
+  placement: 'top',
+  arrowLeft: TERM_POPOVER_WIDTH / 2
+})
+// The currently open term's trigger element, kept so scroll/resize can re-anchor.
+let activeTermEl = null
+
+function positionTermPopover(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function' || typeof window === 'undefined') return
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth || TERM_POPOVER_WIDTH
+  const vh = window.innerHeight || 0
+
+  // Narrow phones get a popover inset by the gutter on both sides.
+  const width = Math.min(TERM_POPOVER_WIDTH, Math.max(160, vw - TERM_POPOVER_GUTTER * 2))
+  const maxLeft = Math.max(TERM_POPOVER_GUTTER, vw - TERM_POPOVER_GUTTER - width)
+  const centre = rect.left + rect.width / 2
+  const left = Math.min(Math.max(centre - width / 2, TERM_POPOVER_GUTTER), maxLeft)
+
+  // Prefer above the term; flip below when the term sits near the top of the
+  // viewport and there is more room underneath it.
+  const placement = rect.top < TERM_POPOVER_FLIP_THRESHOLD && vh - rect.bottom > rect.top ? 'bottom' : 'top'
+
+  termPopover.value = {
+    left,
+    width,
+    top: rect.bottom + 10,
+    bottom: Math.max(TERM_POPOVER_GUTTER, vh - rect.top + 10),
+    placement,
+    // Keep the arrow under the term even when the bubble itself was clamped,
+    // but never let it slide past the bubble's rounded corners.
+    arrowLeft: Math.min(Math.max(centre - left, 18), width - 18)
+  }
 }
-function openTerm(index) {
+
+const termPopoverStyle = computed(() => {
+  const p = termPopover.value
+  const base = { left: `${p.left}px`, width: `${p.width}px` }
+  return p.placement === 'top'
+    ? { ...base, bottom: `${p.bottom}px` }
+    : { ...base, top: `${p.top}px` }
+})
+
+function toggleTerm(index, event) {
+  if (activeTermIndex.value === index) {
+    closeTerm()
+    return
+  }
+  openTerm(index, event)
+}
+function openTerm(index, event) {
   activeTermIndex.value = index
+  const el = event?.currentTarget || event?.target
+  if (el) {
+    activeTermEl = el
+    positionTermPopover(el)
+  }
 }
 function closeTerm() {
   activeTermIndex.value = null
+  activeTermEl = null
+}
+
+// Touch taps synthesize pointerenter before click, so an unguarded hover handler
+// would open the popover and the click would immediately toggle it shut. Hover is
+// therefore mouse-only; touch and pen go through @click. An unknown pointerType
+// (older browsers) is treated as a mouse.
+const TAP_POINTER_TYPES = new Set(['touch', 'pen'])
+function onTermPointerEnter(index, event) {
+  if (event && TAP_POINTER_TYPES.has(event.pointerType)) return
+  openTerm(index, event)
+}
+function onTermPointerLeave(event) {
+  if (event && TAP_POINTER_TYPES.has(event.pointerType)) return
+  closeTerm()
+}
+
+// A fixed popover would drift away from its term on scroll, so re-anchor it (and
+// give up if the term has been unmounted underneath us).
+function onTermViewportChange() {
+  if (activeTermIndex.value === null) return
+  if (!activeTermEl || activeTermEl.isConnected === false) {
+    closeTerm()
+    return
+  }
+  positionTermPopover(activeTermEl)
 }
 
 function openQuestionsModal() {
@@ -301,6 +440,9 @@ watch(isModalOpen, (open) => {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('click', onDocClick)
+  // Capture phase so scrolling any container (not just the page) re-anchors it.
+  window.addEventListener('scroll', onTermViewportChange, true)
+  window.addEventListener('resize', onTermViewportChange)
 })
 
 // True when a string is (the start of) a JSON object/array, ignoring a leading
@@ -782,6 +924,8 @@ onBeforeUnmount(() => {
   clearTimeout(guardTimer)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('click', onDocClick)
+  window.removeEventListener('scroll', onTermViewportChange, true)
+  window.removeEventListener('resize', onTermViewportChange)
   if (typeof document !== 'undefined') document.body.style.overflow = ''
 })
 
@@ -1350,32 +1494,85 @@ async function submit() {
                AI, colour-coded by status. Fully defensive: renders only when the
                array exists and is non-empty. -->
           <div
-            v-if="documentBadges && documentBadges.length"
+            v-if="vitalBadges.length"
             data-testid="vital-badges"
-            class="mt-3"
+            class="mt-4"
           >
-            <div class="text-[13px] font-semibold tracking-wide text-brand-dark dark:text-emerald-300 mb-2">
-              {{ t('symptom_form.vital_badges_title') }}
+            <div class="flex items-center gap-2 mb-2.5 text-brand-dark dark:text-emerald-300">
+              <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
+              <span class="text-[13px] font-semibold">{{ t('symptom_form.vital_badges_title') }}</span>
             </div>
-            <div class="flex flex-wrap gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
               <div
-                v-for="(badge, i) in documentBadges"
+                v-for="(badge, i) in vitalBadges"
                 :key="`${badge.label}-${i}`"
                 data-testid="vital-badge"
                 :data-status="badge.status"
                 :style="{ animationDelay: `${i * 80}ms` }"
                 :class="[
-                  'group inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2',
-                  'shadow-soft backdrop-blur-sm animate-fade-in-up',
+                  'vital-badge group relative overflow-hidden rounded-2xl border px-3 py-2.5',
+                  'backdrop-blur-md shadow-soft ring-1 animate-fade-in-up',
                   'transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-soft-md',
-                  badgeClasses(badge.status)
+                  badge.style.card
                 ]"
               >
-                <span v-if="badge.icon" class="text-lg leading-none shrink-0" aria-hidden="true">{{ badge.icon }}</span>
-                <span class="flex flex-col leading-tight text-start">
-                  <span class="text-[11px] font-medium opacity-80">{{ badge.label }}</span>
-                  <span v-if="badge.value" class="text-sm font-bold tabular-nums">{{ badge.value }}</span>
-                </span>
+                <!-- Hairline glass highlight along the top edge. -->
+                <span
+                  class="pointer-events-none absolute inset-x-0 top-0 h-px
+                         bg-gradient-to-r from-transparent via-white/70 to-transparent
+                         dark:via-white/20"
+                  aria-hidden="true"
+                ></span>
+                <div class="flex items-center gap-2.5">
+                  <span
+                    :class="[
+                      'grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base leading-none',
+                      'transition-transform duration-300 ease-out group-hover:scale-105',
+                      badge.style.tile
+                    ]"
+                    aria-hidden="true"
+                  >
+                    <template v-if="badge.icon">{{ badge.icon }}</template>
+                    <svg
+                      v-else
+                      data-testid="vital-badge-icon"
+                      class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    >
+                      <path v-for="(d, p) in badge.style.paths" :key="p" :d="d"/>
+                    </svg>
+                  </span>
+                  <span class="min-w-0 flex-1 text-start leading-tight">
+                    <span class="block truncate text-[11px] font-medium" :class="badge.style.label">{{ badge.label }}</span>
+                    <span
+                      v-if="badge.value"
+                      class="block truncate text-[15px] font-bold tabular-nums"
+                      :class="badge.style.value"
+                    >{{ badge.value }}</span>
+                  </span>
+                  <!-- The status word keeps normal/warning/critical legible without
+                       relying on colour alone. -->
+                  <span
+                    data-testid="vital-badge-status"
+                    :class="[
+                      'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                      badge.style.pill
+                    ]"
+                  >
+                    <span
+                      :class="[
+                        'h-1.5 w-1.5 rounded-full',
+                        badge.style.dot,
+                        badge.status === 'critical' ? 'animate-pulse' : ''
+                      ]"
+                      aria-hidden="true"
+                    ></span>
+                    {{ badge.statusLabel }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1393,53 +1590,73 @@ async function submit() {
               {{ t('symptom_form.document_summary_title') }}
             </div>
             <!-- Interactive Medical Jargon Decoder: technical terms in the summary
-                 become dashed-underline chips with a hover/tap definition tooltip.
+                 get a soft teal highlight plus a dotted underline, and open a
+                 definition popover on hover (mouse) or tap (touch). The popover is
+                 teleported to <body> and clamped to the viewport so it can never be
+                 clipped by this card or run off a phone's screen edge.
                  Plain-text segments render verbatim when no terms match. -->
             <p class="whitespace-pre-wrap leading-relaxed">
               <template v-for="(seg, i) in summarySegments" :key="i">
-                <span
-                  v-if="seg.term"
-                  class="relative inline-block"
-                  @click.stop
-                >
+                <span v-if="seg.term" class="inline" @click.stop>
                   <span
                     role="button"
                     tabindex="0"
                     data-testid="medical-term"
                     :aria-expanded="activeTermIndex === i"
-                    @click="toggleTerm(i)"
-                    @mouseenter="openTerm(i)"
-                    @mouseleave="closeTerm"
-                    @focus="openTerm(i)"
+                    :aria-describedby="activeTermIndex === i ? `medical-term-tip-${i}` : null"
+                    @click="toggleTerm(i, $event)"
+                    @pointerenter="onTermPointerEnter(i, $event)"
+                    @pointerleave="onTermPointerLeave($event)"
+                    @focus="openTerm(i, $event)"
                     @blur="closeTerm"
-                    @keydown.enter.prevent="toggleTerm(i)"
-                    @keydown.space.prevent="toggleTerm(i)"
-                    class="underline decoration-dashed decoration-teal-400 underline-offset-2
-                           cursor-pointer font-medium text-teal-700 dark:text-teal-300
-                           rounded-sm outline-none transition-colors duration-200
-                           hover:text-teal-800 dark:hover:text-teal-200
-                           focus-visible:ring-2 focus-visible:ring-teal-400/50"
+                    @keydown.enter.prevent="toggleTerm(i, $event)"
+                    @keydown.space.prevent="toggleTerm(i, $event)"
+                    :class="[
+                      'box-decoration-clone cursor-pointer touch-manipulation select-none',
+                      'rounded-[5px] -mx-0.5 px-1 py-0.5 font-medium',
+                      // `length:` hint required — a bare decoration-[1.5px] is
+                      // ambiguous with decoration-color and Tailwind drops it.
+                      'underline decoration-dotted decoration-[length:1.5px] underline-offset-[3px]',
+                      'outline-none transition-colors duration-200',
+                      'text-teal-700 dark:text-teal-200',
+                      'decoration-teal-500/60 dark:decoration-teal-300/50',
+                      'hover:bg-teal-500/20 hover:decoration-teal-600 dark:hover:bg-teal-400/20',
+                      'focus-visible:ring-2 focus-visible:ring-teal-400/60',
+                      activeTermIndex === i
+                        ? 'bg-teal-500/25 dark:bg-teal-400/25 decoration-teal-600 dark:decoration-teal-200'
+                        : 'bg-teal-500/10 dark:bg-teal-400/10'
+                    ]"
                   >{{ seg.text }}</span>
-                  <Transition name="fade">
-                    <span
-                      v-if="activeTermIndex === i"
-                      role="tooltip"
-                      data-testid="medical-term-tooltip"
-                      class="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2
-                             w-max max-w-[240px] px-3 py-2 rounded-xl
-                             bg-slate-900/95 dark:bg-slate-700/95 backdrop-blur-md
-                             text-xs font-normal leading-snug text-white text-start
-                             shadow-soft-lg ring-1 ring-black/5 dark:ring-white/10"
-                    >
-                      <span class="block font-semibold text-teal-300 mb-0.5">{{ seg.term.term }}</span>
-                      {{ seg.term.definition }}
+                  <Teleport to="body">
+                    <Transition name="term-pop">
                       <span
-                        class="absolute top-full left-1/2 -translate-x-1/2 -mt-px
-                               border-4 border-transparent border-t-slate-900/95 dark:border-t-slate-700/95"
-                        aria-hidden="true"
-                      ></span>
-                    </span>
-                  </Transition>
+                        v-if="activeTermIndex === i"
+                        :id="`medical-term-tip-${i}`"
+                        role="tooltip"
+                        data-testid="medical-term-tooltip"
+                        :data-placement="termPopover.placement"
+                        :style="termPopoverStyle"
+                        class="term-pop fixed z-[60] block px-3.5 py-2.5 rounded-2xl
+                               bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl
+                               ring-1 ring-slate-900/10 dark:ring-white/10 shadow-soft-lg
+                               text-xs font-normal leading-relaxed text-start
+                               text-slate-600 dark:text-slate-300"
+                        @click.stop
+                      >
+                        <span class="block font-semibold text-teal-700 dark:text-teal-300 mb-1">{{ seg.term.term }}</span>
+                        {{ seg.term.definition }}
+                        <!-- Rotated square arrow, re-centred under the term whenever
+                             the bubble itself had to be clamped to the viewport. -->
+                        <span
+                          class="absolute h-2.5 w-2.5 -ml-[5px] rotate-45 rounded-[2px]
+                                 bg-white dark:bg-slate-900"
+                          :class="termPopover.placement === 'top' ? '-bottom-1' : '-top-1'"
+                          :style="{ left: `${termPopover.arrowLeft}px` }"
+                          aria-hidden="true"
+                        ></span>
+                      </span>
+                    </Transition>
+                  </Teleport>
                 </span>
                 <template v-else>{{ seg.text }}</template>
               </template>
@@ -2313,6 +2530,14 @@ async function submit() {
   .feedback-pop { animation: none; }
 }
 
+/* Vital cards ride Tailwind's fade-in-up with a per-card delay; honour a
+   reduced-motion preference by landing them instantly instead. */
+@media (prefers-reduced-motion: reduce) {
+  .vital-badge {
+    animation: none !important;
+  }
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 220ms ease;
@@ -2488,5 +2713,30 @@ async function submit() {
 <style>
 @media print {
   .no-print { display: none !important; }
+}
+
+/* Medical-term definition popover. Unscoped because the popover is teleported to
+   <body>, outside this component's scoped-style subtree. The transition animates
+   opacity/transform only, leaving the JS-computed left/top-or-bottom untouched. */
+.term-pop-enter-active {
+  transition: opacity 160ms ease-out, transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.term-pop-leave-active {
+  transition: opacity 120ms ease-in, transform 120ms ease-in;
+}
+.term-pop-enter-from,
+.term-pop-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-pop-enter-active,
+  .term-pop-leave-active {
+    transition: opacity 120ms ease;
+  }
+  .term-pop-enter-from,
+  .term-pop-leave-to {
+    transform: none;
+  }
 }
 </style>

@@ -233,11 +233,22 @@ function badgeStyle(status) {
   return BADGE_STYLES[status] || BADGE_STYLES.normal
 }
 
+// Values range from "۹۲" to "۱ به ۳ برابر میانگین", so the type scales down as the
+// string grows. It keeps a long value on one or two comfortable lines instead of
+// forcing the card to clip it.
+function badgeValueSize(value) {
+  const len = String(value ?? '').length
+  if (len > 18) return 'text-xs'
+  if (len > 11) return 'text-[13px]'
+  return 'text-[15px]'
+}
+
 // Decorates each normalized badge with its palette and a localized status word,
 // so colour is never the only carrier of the normal/warning/critical meaning.
 const vitalBadges = computed(() => documentBadges.value.map(b => ({
   ...b,
   style: badgeStyle(b.status),
+  valueSize: badgeValueSize(b.value),
   statusLabel: t(`symptom_form.vital_status_${b.status}`)
 })))
 
@@ -1505,7 +1516,10 @@ async function submit() {
               </svg>
               <span class="text-[13px] font-semibold">{{ t('symptom_form.vital_badges_title') }}</span>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+            <!-- Two columns at most: this card sits in a max-w-2xl column, so a
+                 third column would squeeze each card to ~200px and clip long
+                 indicator names. -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div
                 v-for="(badge, i) in vitalBadges"
                 :key="`${badge.label}-${i}`"
@@ -1526,7 +1540,7 @@ async function submit() {
                          dark:via-white/20"
                   aria-hidden="true"
                 ></span>
-                <div class="flex items-center gap-2.5">
+                <div class="flex items-start gap-2.5">
                   <span
                     :class="[
                       'grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base leading-none',
@@ -1545,33 +1559,44 @@ async function submit() {
                       <path v-for="(d, p) in badge.style.paths" :key="p" :d="d"/>
                     </svg>
                   </span>
-                  <span class="min-w-0 flex-1 text-start leading-tight">
-                    <span class="block truncate text-[11px] font-medium" :class="badge.style.label">{{ badge.label }}</span>
+                  <!-- The label wraps rather than truncating: AI indicator names run
+                       long in Persian ("خطر سندروم متابولیک"), and a clipped name is
+                       worse than a two-line card. -->
+                  <div class="min-w-0 flex-1 text-start">
                     <span
-                      v-if="badge.value"
-                      class="block truncate text-[15px] font-bold tabular-nums"
-                      :class="badge.style.value"
-                    >{{ badge.value }}</span>
-                  </span>
-                  <!-- The status word keeps normal/warning/critical legible without
-                       relying on colour alone. -->
-                  <span
-                    data-testid="vital-badge-status"
-                    :class="[
-                      'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      badge.style.pill
-                    ]"
-                  >
-                    <span
-                      :class="[
-                        'h-1.5 w-1.5 rounded-full',
-                        badge.style.dot,
-                        badge.status === 'critical' ? 'animate-pulse' : ''
-                      ]"
-                      aria-hidden="true"
-                    ></span>
-                    {{ badge.statusLabel }}
-                  </span>
+                      class="block text-xs font-medium leading-snug break-words"
+                      :class="badge.style.label"
+                    >{{ badge.label }}</span>
+                    <!-- Value and status share a row but may wrap apart, so neither
+                         ever has to be cut short. -->
+                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span
+                        v-if="badge.value"
+                        class="font-bold tabular-nums leading-tight break-words"
+                        :class="[badge.valueSize, badge.style.value]"
+                      >{{ badge.value }}</span>
+                      <!-- The status word keeps normal/warning/critical legible
+                           without relying on colour alone. -->
+                      <span
+                        data-testid="vital-badge-status"
+                        :class="[
+                          'ms-auto inline-flex shrink-0 items-center gap-1.5 rounded-full',
+                          'px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap',
+                          badge.style.pill
+                        ]"
+                      >
+                        <span
+                          :class="[
+                            'h-1.5 w-1.5 rounded-full',
+                            badge.style.dot,
+                            badge.status === 'critical' ? 'animate-pulse' : ''
+                          ]"
+                          aria-hidden="true"
+                        ></span>
+                        {{ badge.statusLabel }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1590,10 +1615,11 @@ async function submit() {
               {{ t('symptom_form.document_summary_title') }}
             </div>
             <!-- Interactive Medical Jargon Decoder: technical terms in the summary
-                 get a soft teal highlight plus a dotted underline, and open a
-                 definition popover on hover (mouse) or tap (touch). The popover is
-                 teleported to <body> and clamped to the viewport so it can never be
-                 clipped by this card or run off a phone's screen edge.
+                 get a soft teal highlight, a dashed bottom border and a trailing
+                 info glyph — three overlapping cues that they are tappable — and
+                 open a definition popover on hover (mouse) or tap (touch). The
+                 popover is teleported to <body> and clamped to the viewport so it
+                 can never be clipped by this card or run off a phone's screen edge.
                  Plain-text segments render verbatim when no terms match. -->
             <p class="whitespace-pre-wrap leading-relaxed">
               <template v-for="(seg, i) in summarySegments" :key="i">
@@ -1612,21 +1638,31 @@ async function submit() {
                     @keydown.enter.prevent="toggleTerm(i, $event)"
                     @keydown.space.prevent="toggleTerm(i, $event)"
                     :class="[
-                      'box-decoration-clone cursor-pointer touch-manipulation select-none',
-                      'rounded-[5px] -mx-0.5 px-1 py-0.5 font-medium',
-                      // `length:` hint required — a bare decoration-[1.5px] is
-                      // ambiguous with decoration-color and Tailwind drops it.
-                      'underline decoration-dotted decoration-[length:1.5px] underline-offset-[3px]',
-                      'outline-none transition-colors duration-200',
+                      'medical-term group/term box-decoration-clone cursor-help touch-manipulation',
+                      'rounded-md -mx-0.5 px-1 pt-0.5 pb-px font-medium',
+                      // A dashed bottom border (rather than text-decoration) sits
+                      // clear of the descenders and reads as the familiar
+                      // there-is-a-definition-behind-this affordance.
+                      'border-b-[1.5px] border-dashed',
                       'text-teal-700 dark:text-teal-200',
-                      'decoration-teal-500/60 dark:decoration-teal-300/50',
-                      'hover:bg-teal-500/20 hover:decoration-teal-600 dark:hover:bg-teal-400/20',
+                      'outline-none transition duration-200 ease-out',
+                      'hover:bg-teal-500/[0.16] dark:hover:bg-teal-400/[0.18]',
+                      'hover:border-solid hover:border-teal-600 dark:hover:border-teal-200',
                       'focus-visible:ring-2 focus-visible:ring-teal-400/60',
                       activeTermIndex === i
-                        ? 'bg-teal-500/25 dark:bg-teal-400/25 decoration-teal-600 dark:decoration-teal-200'
-                        : 'bg-teal-500/10 dark:bg-teal-400/10'
+                        ? 'bg-teal-500/20 dark:bg-teal-400/25 border-solid border-teal-600 dark:border-teal-200'
+                        : 'bg-teal-500/[0.08] dark:bg-teal-400/[0.10] border-teal-500/50 dark:border-teal-300/40'
                     ]"
-                  >{{ seg.text }}</span>
+                  >{{ seg.text }}<svg
+                      data-testid="medical-term-info"
+                      class="inline-block h-3 w-3 ms-0.5 align-[-0.1em]
+                             text-teal-600/70 dark:text-teal-300/70
+                             opacity-70 transition-opacity duration-200
+                             group-hover/term:opacity-100"
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                      aria-hidden="true"
+                    ><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg></span>
                   <Teleport to="body">
                     <Transition name="term-pop">
                       <span

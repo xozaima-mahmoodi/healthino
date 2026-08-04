@@ -401,7 +401,7 @@ describe('SymptomForm — vital badges', () => {
     expect(cards[0].text()).toContain('9.1 g/dL')
   })
 
-  it('lays the cards out in a responsive grid (1 → 2 → 3 columns)', async () => {
+  it('lays the cards out one per row on mobile and two per row from sm up', async () => {
     const wrapper = await mountForm()
     await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
 
@@ -409,7 +409,60 @@ describe('SymptomForm — vital badges', () => {
     expect(grid.className).toContain('grid')
     expect(grid.className).toContain('grid-cols-1')
     expect(grid.className).toContain('sm:grid-cols-2')
-    expect(grid.className).toContain('xl:grid-cols-3')
+    // A third column inside the max-w-2xl form column would clip long names.
+    expect(grid.className).not.toContain('grid-cols-3')
+  })
+
+  it('wraps long indicator names instead of truncating them', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, {
+      summary: 'خلاصه',
+      vital_badges: [
+        { label: 'خطر سندروم متابولیک', value: '۱ به ۳ برابر میانگین', status: 'warning' }
+      ]
+    })
+
+    const card = wrapper.find('[data-testid="vital-badge"]')
+    // Nothing inside the card may clip its text.
+    expect(card.html()).not.toContain('truncate')
+    expect(card.html()).not.toContain('text-ellipsis')
+
+    // The full strings survive, and the label is free to run onto a second line.
+    expect(card.text()).toContain('خطر سندروم متابولیک')
+    expect(card.text()).toContain('۱ به ۳ برابر میانگین')
+    const label = card.findAll('span').find(s => s.text() === 'خطر سندروم متابولیک')
+    expect(label.classes()).toContain('break-words')
+    expect(label.classes()).not.toContain('whitespace-nowrap')
+  })
+
+  it('scales the value type down as the value string grows', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, {
+      summary: 'خلاصه',
+      vital_badges: [
+        { label: 'قند خون', value: '۹۲', status: 'normal' },
+        { label: 'فشار خون', value: '۱۸۰/۱۱۰ mmHg', status: 'critical' },
+        { label: 'خطر سندروم متابولیک', value: '۱ به ۳ برابر میانگین جمعیت', status: 'warning' }
+      ]
+    })
+
+    const values = wrapper.findAll('[data-testid="vital-badge"]')
+      .map(c => c.findAll('span').find(s => s.classes().includes('tabular-nums')))
+
+    expect(values[0].classes()).toContain('text-[15px]')   // short
+    expect(values[1].classes()).toContain('text-[13px]')   // medium
+    expect(values[2].classes()).toContain('text-xs')       // long
+  })
+
+  it('keeps the status pill on one line and lets it wrap below a long value', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, { summary: 'خلاصه', vital_badges: BADGES })
+
+    const pill = wrapper.find('[data-testid="vital-badge-status"]')
+    expect(pill.classes()).toContain('whitespace-nowrap')
+    expect(pill.classes()).toContain('shrink-0')
+    // Its row wraps, so the pill never squeezes the value out of the card.
+    expect(pill.element.parentElement.className).toContain('flex-wrap')
   })
 
   it('colour-codes emerald / amber / rose and names the status in words', async () => {
@@ -508,16 +561,51 @@ describe('SymptomForm — medical terminology decoder', () => {
       .toContain('The report shows anemia and mild tachycardia.')
   })
 
-  it('marks the chips with a highlight plus dotted underline, in both themes', async () => {
+  it('signals interactivity with a soft highlight, a dashed bottom border and a help cursor', async () => {
     const wrapper = await mountForm()
     await analyzeWith(wrapper, PAYLOAD)
 
     const classes = wrapper.find('[data-testid="medical-term"]').classes()
-    expect(classes).toContain('underline')
-    expect(classes).toContain('decoration-dotted')
-    expect(classes).toContain('cursor-pointer')
-    expect(classes).toContain('bg-teal-500/10')
-    expect(classes).toContain('dark:bg-teal-400/10')
+    expect(classes).toContain('border-b-[1.5px]')
+    expect(classes).toContain('border-dashed')
+    expect(classes).toContain('cursor-help')
+    expect(classes).toContain('bg-teal-500/[0.08]')
+    expect(classes).toContain('dark:bg-teal-400/[0.10]')
+    // Hover deepens the highlight and firms the border into a solid line.
+    expect(classes).toContain('hover:bg-teal-500/[0.16]')
+    expect(classes).toContain('hover:border-solid')
+  })
+
+  it('carries a trailing info glyph as a second interactivity cue', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+    const icon = term.find('[data-testid="medical-term-info"]')
+    expect(icon.exists()).toBe(true)
+    // Decorative only — the definition is already announced via aria-describedby.
+    expect(icon.attributes('aria-hidden')).toBe('true')
+    // It brightens with the chip rather than on its own.
+    expect(icon.classes()).toContain('group-hover/term:opacity-100')
+    expect(term.classes()).toContain('group/term')
+    // Chips still read as just their term (the glyph contributes no text).
+    expect(term.text()).toBe('anemia')
+  })
+
+  it('switches the chip to a solid border and stronger tint while its definition is open', async () => {
+    const wrapper = await mountForm()
+    await analyzeWith(wrapper, PAYLOAD)
+    const term = wrapper.findAll('[data-testid="medical-term"]')[0]
+
+    expect(term.classes()).toContain('bg-teal-500/[0.08]')
+    expect(term.classes()).not.toContain('border-solid')
+
+    await term.trigger('click')
+
+    expect(term.classes()).toContain('bg-teal-500/20')
+    expect(term.classes()).toContain('border-solid')
+
+    wrapper.unmount()
   })
 
   it('opens a popover with the term and its definition on tap, and closes on a second tap', async () => {
